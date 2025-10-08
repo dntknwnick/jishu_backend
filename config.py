@@ -16,6 +16,7 @@ class Config:
     # JWT Configuration
     JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY', 'your-secret-key-change-in-production')
     JWT_ACCESS_TOKEN_EXPIRES = 3600  # 1 hour
+    JWT_REFRESH_TOKEN_EXPIRES = 2592000  # 30 days
     
     # Google OAuth Configuration
     GOOGLE_CLIENT_ID = os.getenv('GOOGLE_CLIENT_ID')
@@ -24,11 +25,16 @@ class Config:
     
     # Flask Configuration
     SECRET_KEY = os.getenv('SECRET_KEY', 'your-secret-key-change-in-production')
-    
-    # Service URLs (for microservices communication)
-    AUTH_SERVICE_URL = os.getenv('AUTH_SERVICE_URL', 'http://localhost:5000')
-    USER_SERVICE_URL = os.getenv('USER_SERVICE_URL', 'http://localhost:5000')
-    GATEWAY_SERVICE_URL = os.getenv('GATEWAY_SERVICE_URL', 'http://localhost:5000')
+
+    # Google OAuth Configuration
+    GOOGLE_CLIENT_ID = os.getenv('GOOGLE_CLIENT_ID')
+    GOOGLE_CLIENT_SECRET = os.getenv('GOOGLE_CLIENT_SECRET')
+    GOOGLE_REDIRECT_URI = os.getenv('GOOGLE_REDIRECT_URI', 'http://localhost:5000/auth/google/callback')
+
+    # Application Configuration
+    APP_NAME = 'Jishu Backend'
+    APP_VERSION = '1.0.0'
+    ARCHITECTURE = 'monolithic'
     
     # CORS Configuration
     CORS_ORIGINS = os.getenv('CORS_ORIGINS', '*').split(',')

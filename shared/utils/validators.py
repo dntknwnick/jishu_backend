@@ -1,13 +1,13 @@
 import re
-from email_validator import validate_email, EmailNotValidError
 
 def validate_email_format(email):
-    """Validate email format"""
-    try:
-        validate_email(email)
-        return True
-    except EmailNotValidError:
+    """Validate email format using regex"""
+    if not email or not isinstance(email, str):
         return False
+
+    # Basic email regex pattern
+    pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    return bool(re.match(pattern, email.strip()))
 
 def validate_mobile_number(mobile):
     """Validate mobile number format (Indian format)"""
