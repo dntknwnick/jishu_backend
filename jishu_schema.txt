@@ -1,0 +1,278 @@
+CREATE TABLE `users` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `mobile_no` varchar(20) NOT NULL,
+  `email_id` varchar(100) NOT NULL,
+  `name` varchar(100) NOT NULL,
+  `password` varchar(255) NOT NULL,
+  `is_premium` tinyint(1) DEFAULT '0',
+  `is_admin` tinyint(1) DEFAULT '0',
+  `color_theme` enum('light','dark') DEFAULT 'light',
+  `otp` varchar(10) DEFAULT NULL,
+  `otp_verified` tinyint(1) DEFAULT '0',
+  `last_login` datetime DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `status` enum('active','inactive','blocked') DEFAULT 'active',
+  `source` varchar(100) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `email_id` (`email_id`)
+);
+
+CREATE TABLE exam_category (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  course_name VARCHAR(100) NOT NULL,
+  description TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+CREATE TABLE exam_category_subjects (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  exam_category_id INT,
+  subject_name VARCHAR(100) NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (exam_category_id) REFERENCES exam_category(id)
+);
+
+CREATE TABLE exam_category_purchase (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  user_id INT,
+  exam_category_id INT,
+  subject_id INT,
+  cost DECIMAL(10, 2) NOT NULL,
+  no_of_attempts INT DEFAULT 3,
+  attempts_used INT DEFAULT 0,
+  total_marks INT,
+  marks_scored INT DEFAULT 0,
+  purchase_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  last_attempt_date TIMESTAMP NULL,
+  status ENUM('active', 'completed', 'expired') DEFAULT 'active',
+  FOREIGN KEY (user_id) REFERENCES users(id),
+  FOREIGN KEY (exam_category_id) REFERENCES exam_category(id),
+  FOREIGN KEY (subject_id) REFERENCES exam_category_subjects(id)
+);
+
+
+CREATE TABLE exam_category_questions (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  exam_category_id INT,
+  subject_id INT,
+  question TEXT NOT NULL,
+  option_1 VARCHAR(255) NOT NULL,
+  option_2 VARCHAR(255) NOT NULL,
+  option_3 VARCHAR(255) NOT NULL,
+  option_4 VARCHAR(255) NOT NULL,
+  correct_answer VARCHAR(255) NOT NULL,
+  explanation TEXT,
+  user_id INT,
+  purchased_id INT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (exam_category_id) REFERENCES exam_category(id),
+  FOREIGN KEY (subject_id) REFERENCES exam_category_subjects(id),
+  FOREIGN KEY (user_id) REFERENCES users(id),
+  FOREIGN KEY (purchased_id) REFERENCES exam_category_purchase(id)
+);
+
+-- Test Attempts and Results
+CREATE TABLE test_attempts (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  user_id INT,
+  purchase_id INT,
+  exam_category_id INT,
+  subject_id INT,
+  total_questions INT NOT NULL,
+  correct_answers INT DEFAULT 0,
+  wrong_answers INT DEFAULT 0,
+  unanswered INT DEFAULT 0,
+  total_marks INT NOT NULL,
+  marks_scored INT DEFAULT 0,
+  percentage DECIMAL(5,2) DEFAULT 0.00,
+  time_taken INT DEFAULT 0, -- in seconds
+  started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  completed_at TIMESTAMP NULL,
+  status ENUM('in_progress', 'completed', 'abandoned') DEFAULT 'in_progress',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id),
+  FOREIGN KEY (purchase_id) REFERENCES exam_category_purchase(id),
+  FOREIGN KEY (exam_category_id) REFERENCES exam_category(id),
+  FOREIGN KEY (subject_id) REFERENCES exam_category_subjects(id)
+);
+
+-- User Answers for each test attempt
+CREATE TABLE test_answers (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  attempt_id INT,
+  question_id INT,
+  selected_answer VARCHAR(255),
+  is_correct BOOLEAN DEFAULT FALSE,
+  time_taken INT DEFAULT 0, -- in seconds for this question
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (attempt_id) REFERENCES test_attempts(id) ON DELETE CASCADE,
+  FOREIGN KEY (question_id) REFERENCES exam_category_questions(id)
+);
+
+-- Community Blog Posts
+CREATE TABLE blog_posts (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  user_id INT,
+  title VARCHAR(255) NOT NULL,
+  content TEXT NOT NULL,
+  tags VARCHAR(500), -- comma-separated tags
+  likes_count INT DEFAULT 0,
+  comments_count INT DEFAULT 0,
+  is_featured BOOLEAN DEFAULT FALSE,
+  status ENUM('draft', 'published', 'archived') DEFAULT 'published',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+-- Blog Post Likes
+CREATE TABLE blog_likes (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  user_id INT,
+  post_id INT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id),
+  FOREIGN KEY (post_id) REFERENCES blog_posts(id) ON DELETE CASCADE,
+  UNIQUE KEY unique_user_post_like (user_id, post_id)
+);
+
+-- Blog Post Comments
+CREATE TABLE blog_comments (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  user_id INT,
+  post_id INT,
+  parent_comment_id INT NULL, -- for nested comments
+  content TEXT NOT NULL,
+  likes_count INT DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id),
+  FOREIGN KEY (post_id) REFERENCES blog_posts(id) ON DELETE CASCADE,
+  FOREIGN KEY (parent_comment_id) REFERENCES blog_comments(id) ON DELETE CASCADE
+);
+
+-- AI Chat History
+CREATE TABLE ai_chat_history (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  user_id INT,
+  session_id VARCHAR(100),
+  message TEXT NOT NULL,
+  response TEXT NOT NULL,
+  tokens_used INT DEFAULT 0,
+  response_time DECIMAL(8,3) DEFAULT 0.000, -- in seconds
+  is_academic BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+-- User AI Usage Statistics
+CREATE TABLE user_ai_stats (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  user_id INT,
+  total_queries INT DEFAULT 0,
+  total_tokens_used INT DEFAULT 0,
+  monthly_queries INT DEFAULT 0,
+  monthly_tokens_used INT DEFAULT 0,
+  last_query_date TIMESTAMP NULL,
+  month_year VARCHAR(7), -- format: YYYY-MM
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id),
+  UNIQUE KEY unique_user_month (user_id, month_year)
+);
+
+-- Password Reset Tokens
+CREATE TABLE password_reset_tokens (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  user_id INT,
+  token VARCHAR(255) NOT NULL,
+  expires_at TIMESTAMP NOT NULL,
+  used BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id),
+  UNIQUE KEY unique_token (token)
+);
+
+-- =====================================================
+-- ALTER STATEMENTS FOR EXISTING TABLES (IF NEEDED)
+-- =====================================================
+
+-- Add missing columns to users table if they don't exist
+ALTER TABLE users
+ADD COLUMN IF NOT EXISTS google_id VARCHAR(255) UNIQUE,
+ADD COLUMN IF NOT EXISTS auth_provider ENUM('manual', 'google') DEFAULT 'manual',
+ADD COLUMN IF NOT EXISTS refresh_token TEXT,
+ADD COLUMN IF NOT EXISTS refresh_token_expires_at DATETIME,
+ADD COLUMN IF NOT EXISTS otp_expires_at DATETIME;
+
+-- =====================================================
+-- INDEXES FOR BETTER PERFORMANCE
+-- =====================================================
+
+-- Indexes for users table
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email_id);
+CREATE INDEX IF NOT EXISTS idx_users_status ON users(status);
+CREATE INDEX IF NOT EXISTS idx_users_google_id ON users(google_id);
+
+-- Indexes for exam_category table
+CREATE INDEX IF NOT EXISTS idx_exam_category_name ON exam_category(course_name);
+
+-- Indexes for exam_category_subjects table
+CREATE INDEX IF NOT EXISTS idx_subjects_category ON exam_category_subjects(exam_category_id);
+CREATE INDEX IF NOT EXISTS idx_subjects_name ON exam_category_subjects(subject_name);
+
+-- Indexes for exam_category_purchase table
+CREATE INDEX IF NOT EXISTS idx_purchase_user ON exam_category_purchase(user_id);
+CREATE INDEX IF NOT EXISTS idx_purchase_category ON exam_category_purchase(exam_category_id);
+CREATE INDEX IF NOT EXISTS idx_purchase_subject ON exam_category_purchase(subject_id);
+CREATE INDEX IF NOT EXISTS idx_purchase_date ON exam_category_purchase(purchase_date);
+
+-- Indexes for exam_category_questions table
+CREATE INDEX IF NOT EXISTS idx_questions_category ON exam_category_questions(exam_category_id);
+CREATE INDEX IF NOT EXISTS idx_questions_subject ON exam_category_questions(subject_id);
+CREATE INDEX IF NOT EXISTS idx_questions_user ON exam_category_questions(user_id);
+
+-- Indexes for test_attempts table
+CREATE INDEX IF NOT EXISTS idx_attempts_user ON test_attempts(user_id);
+CREATE INDEX IF NOT EXISTS idx_attempts_purchase ON test_attempts(purchase_id);
+CREATE INDEX IF NOT EXISTS idx_attempts_status ON test_attempts(status);
+CREATE INDEX IF NOT EXISTS idx_attempts_date ON test_attempts(started_at);
+
+-- Indexes for test_answers table
+CREATE INDEX IF NOT EXISTS idx_answers_attempt ON test_answers(attempt_id);
+CREATE INDEX IF NOT EXISTS idx_answers_question ON test_answers(question_id);
+
+-- Indexes for blog_posts table
+CREATE INDEX IF NOT EXISTS idx_posts_user ON blog_posts(user_id);
+CREATE INDEX IF NOT EXISTS idx_posts_status ON blog_posts(status);
+CREATE INDEX IF NOT EXISTS idx_posts_created ON blog_posts(created_at);
+CREATE INDEX IF NOT EXISTS idx_posts_featured ON blog_posts(is_featured);
+
+-- Indexes for blog_likes table
+CREATE INDEX IF NOT EXISTS idx_likes_user ON blog_likes(user_id);
+CREATE INDEX IF NOT EXISTS idx_likes_post ON blog_likes(post_id);
+
+-- Indexes for blog_comments table
+CREATE INDEX IF NOT EXISTS idx_comments_user ON blog_comments(user_id);
+CREATE INDEX IF NOT EXISTS idx_comments_post ON blog_comments(post_id);
+CREATE INDEX IF NOT EXISTS idx_comments_parent ON blog_comments(parent_comment_id);
+
+-- Indexes for ai_chat_history table
+CREATE INDEX IF NOT EXISTS idx_chat_user ON ai_chat_history(user_id);
+CREATE INDEX IF NOT EXISTS idx_chat_session ON ai_chat_history(session_id);
+CREATE INDEX IF NOT EXISTS idx_chat_date ON ai_chat_history(created_at);
+
+-- Indexes for user_ai_stats table
+CREATE INDEX IF NOT EXISTS idx_ai_stats_user ON user_ai_stats(user_id);
+CREATE INDEX IF NOT EXISTS idx_ai_stats_month ON user_ai_stats(month_year);
+
+-- Indexes for password_reset_tokens table
+CREATE INDEX IF NOT EXISTS idx_reset_user ON password_reset_tokens(user_id);
+CREATE INDEX IF NOT EXISTS idx_reset_token ON password_reset_tokens(token);
+CREATE INDEX IF NOT EXISTS idx_reset_expires ON password_reset_tokens(expires_at);
+
+

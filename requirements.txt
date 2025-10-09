@@ -12,3 +12,11 @@ gunicorn==21.2.0
 google-auth==2.23.3
 google-auth-oauthlib==1.1.0
 google-auth-httplib2==0.1.1
+
+# AI and ML dependencies for question generation and RAG
+ollama==0.3.3
+sentence-transformers==2.2.2
+PyPDF2==3.0.1
+numpy==1.24.3
+torch==2.0.1
+transformers==4.35.2

@@ -1,0 +1,60 @@
+Authentication & User Flow:
+Endpoint                  |  Method  |  Auth Required  |  Role  |  Description                        |  Input Parameters                    |  Response               
+--------------------------+----------+-----------------+--------+-------------------------------------+--------------------------------------+-------------------------
+/api/auth/register        |  POST    |  No             |  All   |  Register with email + OTP          |  email, otp, password                |  JWT token, user profile
+/api/auth/login           |  POST    |  No             |  All   |  Login (Google OAuth or email/OTP)  |  email, password/otp or OAuth token  |  JWT token, user profile
+/api/auth/logout          |  POST    |  Yes            |  All   |  Logout and blacklist token         |  JWT token                           |  Success message        
+/api/auth/otp/request     |  POST    |  No             |  All   |  Request email OTP                  |  email                               |  OTP sent status        
+/api/auth/reset_password  |  POST    |  No             |  All   |  Initiate password reset            |  email                               |  Instruction sent msg   
+/api/auth/profile         |  GET     |  Yes            |  User  |  Get user profile                   |  JWT token                           |  User profile           
+/api/auth/profile/edit    |  PUT     |  Yes            |  User  |  Edit own profile                   |  JWT token, editable fields          |  Updated profile        
+/api/auth/soft_delete     |  DELETE  |  Yes            |  User  |  Soft delete own account            |  JWT token                           |  Success message        
+
+
+Course & Subject Management:
+
+Endpoint                      |  Method  |  Auth Required  |  Role   |  Description                         |  Input Parameters                    |  Response        
+------------------------------+----------+-----------------+---------+--------------------------------------+--------------------------------------+------------------
+/api/courses                  |  GET     |  No             |  All    |  List all courses                    |  None                                |  List of courses 
+/api/courses/<id>             |  GET     |  No             |  All    |  View course by ID                   |  course_id                           |  Course details  
+/api/subjects?course_id=<id>  |  GET     |  No             |  All    |  Get subjects for a specific course  |  course_id                           |  List of subjects
+/api/admin/courses            |  POST    |  Yes            |  Admin  |  Add new course                      |  JWT token, course data              |  Created course  
+/api/admin/courses/<id>       |  PUT     |  Yes            |  Admin  |  Edit course                         |  JWT token, course_id, data          |  Updated course  
+/api/admin/courses/<id>       |  DELETE  |  Yes            |  Admin  |  Delete course                       |  JWT token, course_id                |  Success message 
+/api/admin/subjects           |  POST    |  Yes            |  Admin  |  Add new subject to course           |  JWT token, subject data, course_id  |  Created subject 
+/api/admin/subjects/<id>      |  PUT     |  Yes            |  Admin  |  Edit subject                        |  JWT token, subject_id, data         |  Updated subject 
+/api/admin/subjects/<id>      |  DELETE  |  Yes            |  Admin  |  Delete subject                      |  JWT token, subject_id               |  Success message 
+
+Purchase & Payment:
+Endpoint                           |  Method  |  Auth Required  |  Role  |  Description                  |  Input Parameters             |  Response       
+-----------------------------------+----------+-----------------+--------+-------------------------------+-------------------------------+-----------------
+/api/community/posts               |  GET     |  No             |  All   |  List all posts in community  |  None                         |  List of posts  
+/api/community/posts               |  POST    |  Yes            |  User  |  Create a new post            |  JWT token, post content      |  Created post   
+/api/community/posts/<id>/like     |  POST    |  Yes            |  User  |  Like a post                  |  JWT token, post_id           |  Like count     
+/api/community/posts/<id>/comment  |  POST    |  Yes            |  User  |  Add a comment to a post      |  JWT token, post_id, comment  |  Created comment
+/api/community/comments/<id>       |  DELETE  |  Yes            |  User  |  Delete own comment           |  JWT token, comment_id        |  Success message
+/api/community/posts/<id>          |  DELETE  |  Yes            |  User  |  Delete own post              |  JWT token, post_id           |  Success message
+
+Admin Moderation:
+
+Endpoint                  |  Method  |  Auth Required  |  Role   |  Description         |  Input Parameters                |  Response       
+--------------------------+----------+-----------------+---------+----------------------+----------------------------------+-----------------
+/api/admin/posts/<id>     |  PUT     |  Yes            |  Admin  |  Edit any post       |  JWT token, post_id, changes     |  Updated post   
+/api/admin/posts/<id>     |  DELETE  |  Yes            |  Admin  |  Delete any post     |  JWT token, post_id              |  Success message
+/api/admin/comments/<id>  |  PUT     |  Yes            |  Admin  |  Edit any comment    |  JWT token, comment_id, changes  |  Updated comment
+/api/admin/comments/<id>  |  DELETE  |  Yes            |  Admin  |  Delete any comment  |  JWT token, comment_id           |  Success message
+
+AI Chatbot:
+Endpoint                |  Method  |  Auth Required  |  Role   |  Description                           |  Input Parameters             |  Response           
+------------------------+----------+-----------------+---------+----------------------------------------+-------------------------------+---------------------
+/api/ai/chat            |  POST    |  Yes            |  User   |  Ask educational question to chatbot   |  JWT token, message, context  |  Answer, tokens used
+/api/admin/chat/tokens  |  GET     |  Yes            |  Admin  |  Get all users’ chat token statistics  |  JWT token                    |  Token usage by user
+
+Admin User Management:
+
+Endpoint                           |  Method  |  Auth Required  |  Role   |  Description                     |  Input Parameters    |  Response       
+-----------------------------------+----------+-----------------+---------+----------------------------------+----------------------+-----------------
+/api/admin/users                   |  GET     |  Yes            |  Admin  |  List all users                  |  JWT token           |  List of users  
+/api/admin/users/<id>/deactivate   |  PUT     |  Yes            |  Admin  |  Deactivate user account         |  JWT token, user_id  |  Success message
+/api/admin/users/<id>/purchases    |  GET     |  Yes            |  Admin  |  Get user’s purchase history     |  JWT token, user_id  |  Purchases      
+/api/admin/users/<id>/chat_tokens  |  GET     |  Yes            |  Admin  |  Get user’s AI chat token usage  |  JWT token, user_id  |  Token stats    

@@ -39,6 +39,14 @@ class Config:
     # CORS Configuration
     CORS_ORIGINS = os.getenv('CORS_ORIGINS', '*').split(',')
 
+    # AI Service Configuration
+    AI_PDF_FOLDER = os.getenv('AI_PDF_FOLDER', os.path.join(os.getcwd(), 'pdfs'))
+    AI_OLLAMA_MODEL = os.getenv('AI_OLLAMA_MODEL', 'llama3.2:1b')
+    AI_MAX_CONTENT_LENGTH = int(os.getenv('AI_MAX_CONTENT_LENGTH', '8000'))
+    AI_DEFAULT_QUESTIONS_COUNT = int(os.getenv('AI_DEFAULT_QUESTIONS_COUNT', '5'))
+    AI_SIMILARITY_THRESHOLD = float(os.getenv('AI_SIMILARITY_THRESHOLD', '0.1'))
+    AI_RAG_TOP_K = int(os.getenv('AI_RAG_TOP_K', '3'))
+
 class DevelopmentConfig(Config):
     DEBUG = True
 
