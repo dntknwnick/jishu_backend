@@ -89,7 +89,7 @@
 ```json
 {
   "email": "user@example.com",
-  "password": "SecurePass123!"
+  "otp": "123456"
 }
 ```
 
