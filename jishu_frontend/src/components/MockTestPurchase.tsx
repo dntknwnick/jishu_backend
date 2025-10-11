@@ -70,7 +70,7 @@ export default function MockTestPurchase({ user }: MockTestPurchaseProps) {
   const tax = Math.round((subtotal - discount) * 0.18);
   const total = subtotal - discount + tax;
 
-  const handlePayment = (e: React.FormEvent) => {
+  const handlePayment = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (paymentMethod === 'card') {
@@ -89,18 +89,17 @@ export default function MockTestPurchase({ user }: MockTestPurchaseProps) {
     
     // Process payment through Redux
     try {
-      const purchaseData = {
-        items: currentCart.items,
-        courseId: currentCart.courseId,
-        courseName: currentCart.courseName,
-        paymentMethod,
-        amount: total,
-        discount,
-        tax,
-        isBundle: currentCart.isBundle
-      };
+      // For demo purposes, we'll purchase each item separately
+      for (const item of currentCart.items) {
+        const purchaseData = {
+          courseId: currentCart.courseId || '',
+          subjectId: item.type === 'subject' ? item.id : undefined,
+          paymentMethod
+        };
 
-      await dispatch(processPurchase(purchaseData)).unwrap();
+        await dispatch(processPurchase(purchaseData)).unwrap();
+      }
+
       dispatch(clearCart());
 
       setIsProcessing(false);
@@ -108,7 +107,8 @@ export default function MockTestPurchase({ user }: MockTestPurchaseProps) {
       navigate('/dashboard');
     } catch (error) {
       setIsProcessing(false);
-      toast.error('Payment failed. Please try again.');
+      const errorMessage = error instanceof Error ? error.message : 'Payment failed. Please try again.';
+      toast.error(errorMessage);
     }
   };
 

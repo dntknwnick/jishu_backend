@@ -56,11 +56,45 @@ export default function AIChatbot({ user }: AIChatbotProps) {
   ]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [tokenStatus, setTokenStatus] = useState({
+    tokens_used_today: 0,
+    daily_limit: 50,
+    remaining_tokens: 50,
+    is_unlimited: false
+  });
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isTyping]);
+
+  useEffect(() => {
+    // Fetch token status when component mounts
+    const fetchTokenStatus = async () => {
+      try {
+        const token = localStorage.getItem('access_token');
+        if (!token) return;
+
+        const response = await fetch('http://localhost:5000/api/ai/token-status', {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success) {
+            setTokenStatus(data.data);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch token status:', error);
+      }
+    };
+
+    fetchTokenStatus();
+  }, []);
 
   const generateResponse = (userMessage: string): string => {
     const lowerMessage = userMessage.toLowerCase();
@@ -83,8 +117,14 @@ export default function AIChatbot({ user }: AIChatbotProps) {
     }
   };
 
-  const handleSend = () => {
+  const handleSend = async () => {
     if (!input.trim()) return;
+
+    // Check token limits before sending
+    if (!tokenStatus.is_unlimited && tokenStatus.remaining_tokens <= 0) {
+      alert('You have reached your daily token limit. Purchase a course or subject to get more tokens.');
+      return;
+    }
 
     const userMessage: Message = {
       id: messages.length + 1,
@@ -94,20 +134,62 @@ export default function AIChatbot({ user }: AIChatbotProps) {
     };
 
     setMessages([...messages, userMessage]);
+    const currentInput = input;
     setInput('');
     setIsTyping(true);
 
-    // Simulate AI thinking time
-    setTimeout(() => {
-      const aiMessage: Message = {
+    try {
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
+      const response = await fetch('http://localhost:5000/api/ai/chat', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          message: currentInput,
+          session_id: `session_${Date.now()}`
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          const aiMessage: Message = {
+            id: messages.length + 2,
+            role: 'assistant',
+            content: data.data.response,
+            timestamp: new Date()
+          };
+          setMessages(prev => [...prev, aiMessage]);
+
+          // Update token status
+          if (data.data.token_info) {
+            setTokenStatus(data.data.token_info);
+          }
+        } else {
+          throw new Error(data.message || 'Failed to get AI response');
+        }
+      } else {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to get AI response');
+      }
+    } catch (error) {
+      console.error('AI Chat Error:', error);
+      const errorMessage: Message = {
         id: messages.length + 2,
         role: 'assistant',
-        content: generateResponse(input),
+        content: `Sorry, I encountered an error: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again.`,
         timestamp: new Date()
       };
-      setMessages(prev => [...prev, aiMessage]);
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
       setIsTyping(false);
-    }, 1500);
+    }
   };
 
   const handleQuickQuestion = (question: string) => {
@@ -152,6 +234,49 @@ export default function AIChatbot({ user }: AIChatbotProps) {
                   <p>✓ Step-by-step Solutions</p>
                   <p>✓ Concept Explanations</p>
                 </div>
+              </CardContent>
+            </Card>
+
+            {/* Token Status Card */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Sparkles className="w-5 h-5 text-blue-500" />
+                  Daily Tokens
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-600">Used Today</span>
+                  <span className="font-medium">{tokenStatus.tokens_used_today}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-600">Daily Limit</span>
+                  <span className="font-medium">
+                    {tokenStatus.is_unlimited ? 'Unlimited' : tokenStatus.daily_limit}
+                  </span>
+                </div>
+                {!tokenStatus.is_unlimited && (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-600">Remaining</span>
+                      <span className="font-medium text-green-600">{tokenStatus.remaining_tokens}</span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div
+                        className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+                        style={{
+                          width: `${Math.min(100, (tokenStatus.tokens_used_today / tokenStatus.daily_limit) * 100)}%`
+                        }}
+                      ></div>
+                    </div>
+                  </>
+                )}
+                {tokenStatus.is_unlimited && (
+                  <Badge variant="secondary" className="w-full justify-center">
+                    Unlimited Access
+                  </Badge>
+                )}
               </CardContent>
             </Card>
 

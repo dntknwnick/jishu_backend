@@ -14,6 +14,7 @@ class BlogPost(db.Model):
     likes_count = db.Column(db.Integer, default=0)
     comments_count = db.Column(db.Integer, default=0)
     is_featured = db.Column(db.Boolean, default=False)
+    is_deleted = db.Column(db.Boolean, default=False)
     status = db.Column(db.Enum('draft', 'published', 'archived'), default='published')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -32,6 +33,7 @@ class BlogPost(db.Model):
             'likes_count': self.likes_count,
             'comments_count': self.comments_count,
             'is_featured': self.is_featured,
+            'is_deleted': self.is_deleted,
             'status': self.status,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
@@ -89,6 +91,7 @@ class BlogComment(db.Model):
     parent_comment_id = db.Column(db.Integer, db.ForeignKey('blog_comments.id', ondelete='CASCADE'), nullable=True)
     content = db.Column(db.Text, nullable=False)
     likes_count = db.Column(db.Integer, default=0)
+    is_deleted = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -106,6 +109,7 @@ class BlogComment(db.Model):
             'parent_comment_id': self.parent_comment_id,
             'content': self.content,
             'likes_count': self.likes_count,
+            'is_deleted': self.is_deleted,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
@@ -118,8 +122,10 @@ class BlogComment(db.Model):
             }
         
         if include_replies:
-            result['replies'] = [reply.to_dict(include_user=include_user, include_replies=False) 
-                               for reply in self.replies]
+            # Filter out deleted replies
+            active_replies = [reply for reply in self.replies if not reply.is_deleted]
+            result['replies'] = [reply.to_dict(include_user=include_user, include_replies=False)
+                               for reply in active_replies]
             
         return result
     

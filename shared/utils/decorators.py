@@ -9,7 +9,15 @@ def admin_required(f):
     @jwt_required()
     def decorated_function(*args, **kwargs):
         user_id = get_jwt_identity()
-        user = User.query.get(user_id)
+        print(f"DEBUG admin_required: user_id={user_id}, type={type(user_id)}")
+        # Handle both string and integer identities for backward compatibility
+        try:
+            user_id_int = int(user_id) if isinstance(user_id, (str, int)) else user_id
+            user = User.query.get(user_id_int)
+            print(f"DEBUG admin_required: found user={user.email_id if user else None}")
+        except (ValueError, TypeError) as e:
+            print(f"DEBUG admin_required: conversion error={e}")
+            return error_response("Invalid user identity", 401)
         if not user:
             return error_response("User not found", 404)
         if not user.is_admin:
@@ -25,7 +33,12 @@ def user_required(f):
     @jwt_required()
     def decorated_function(*args, **kwargs):
         user_id = get_jwt_identity()
-        user = User.query.get(user_id)
+        # Handle both string and integer identities for backward compatibility
+        try:
+            user_id_int = int(user_id) if isinstance(user_id, (str, int)) else user_id
+            user = User.query.get(user_id_int)
+        except (ValueError, TypeError):
+            return error_response("Invalid user identity", 401)
         if not user:
             return error_response("User not found", 404)
         if user.status != 'active':
@@ -36,4 +49,10 @@ def user_required(f):
 def get_current_user():
     """Helper function to get current user from JWT token"""
     user_id = get_jwt_identity()
-    return User.query.get(user_id) if user_id else None
+    if not user_id:
+        return None
+    try:
+        user_id_int = int(user_id) if isinstance(user_id, (str, int)) else user_id
+        return User.query.get(user_id_int)
+    except (ValueError, TypeError):
+        return None

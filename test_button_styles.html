@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Modal & Button Test - Tailwind v3 Migration</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root {
+            --background: 0 0% 100%;
+            --foreground: 240 10% 3.9%;
+            --primary: 222.2 84% 4.9%;
+            --primary-foreground: 210 40% 98%;
+            --destructive: 0 84.2% 60.2%;
+            --destructive-foreground: 210 40% 98%;
+            --border: 214.3 31.8% 91.4%;
+            --input: 214.3 31.8% 91.4%;
+            --ring: 222.2 84% 4.9%;
+        }
+
+        /* Modal overlay styles */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 50;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 8px;
+            padding: 24px;
+            max-width: 500px;
+            width: 90%;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+        }
+
+        .dropdown-content {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 4px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            min-width: 200px;
+        }
+    </style>
+</head>
+<body class="p-8 bg-gray-50">
+    <h1 class="text-3xl mb-8">Modal & Button Test - Tailwind v3 Migration</h1>
+    
+    <div class="space-y-4 max-w-md">
+        <!-- Default Button (should be black) -->
+        <button class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-slate-900 text-white hover:bg-slate-800 shadow h-10 px-4 py-2 w-full">
+            Sign In
+        </button>
+        
+        <!-- Proceed to Checkout Button -->
+        <button class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-slate-900 text-white hover:bg-slate-800 shadow h-11 px-8 w-full">
+            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4m0 0L7 13m0 0l-1.5 6M7 13l-1.5 6m0 0h9"></path>
+            </svg>
+            Proceed to Checkout
+        </button>
+        
+        <!-- Send OTP Button -->
+        <button class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-slate-900 text-white hover:bg-slate-800 shadow h-10 px-4 py-2 w-full">
+            Send OTP
+        </button>
+        
+        <!-- Create Course Button -->
+        <button class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-slate-900 text-white hover:bg-slate-800 shadow h-10 px-4 py-2 w-full">
+            Create Course
+        </button>
+        
+        <!-- Outline Button (should be white with border) -->
+        <button class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-slate-200 bg-white hover:bg-slate-50 hover:text-slate-900 h-10 px-4 py-2 w-full">
+            Continue with Google
+        </button>
+        
+        <!-- Destructive Button (should be red) -->
+        <button class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-red-500 text-white hover:bg-red-600 shadow-sm h-10 px-4 py-2 w-full">
+            Delete Course
+        </button>
+        
+        <!-- Gradient Button -->
+        <button class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-gradient-to-r from-blue-600 to-purple-600 text-white border-0 shadow h-11 px-8 w-full">
+            Yes, Logout
+        </button>
+    </div>
+    
+    <!-- Modal Tests -->
+    <div class="mt-8 space-y-4">
+        <h2 class="text-2xl mb-4">Modal Popup Tests</h2>
+
+        <!-- Test Modal Buttons -->
+        <div class="space-x-4">
+            <button onclick="showCreatePostModal()" class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-slate-900 text-white hover:bg-slate-800 shadow h-10 px-4 py-2">
+                Create Post Modal
+            </button>
+            <button onclick="showCreateCourseModal()" class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-slate-900 text-white hover:bg-slate-800 shadow h-10 px-4 py-2">
+                Create Course Modal
+            </button>
+            <button onclick="showProfileDropdown()" class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-slate-200 bg-white hover:bg-slate-50 hover:text-slate-900 h-10 px-4 py-2">
+                Profile Dropdown
+            </button>
+        </div>
+    </div>
+
+    <!-- Create Post Modal -->
+    <div id="createPostModal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold">Create a New Post</h3>
+                <button onclick="hideModal('createPostModal')" class="text-gray-400 hover:text-gray-600">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            <p class="text-gray-600 mb-4">Share your study tips, experiences, or ask questions to the community</p>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium mb-2">Title</label>
+                    <input type="text" placeholder="Enter a catchy title" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-2">Content</label>
+                    <textarea rows="4" placeholder="Share your thoughts..." class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-2">Tags (comma separated)</label>
+                    <input type="text" placeholder="e.g., NEET, Study Tips, Motivation" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+            </div>
+            <div class="flex justify-end gap-2 mt-6">
+                <button onclick="hideModal('createPostModal')" class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-slate-200 bg-white hover:bg-slate-50 hover:text-slate-900 h-10 px-4 py-2">
+                    Cancel
+                </button>
+                <button class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-slate-900 text-white hover:bg-slate-800 shadow h-10 px-4 py-2">
+                    Publish Post
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Course Modal -->
+    <div id="createCourseModal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold">Create New Course</h3>
+                <button onclick="hideModal('createCourseModal')" class="text-gray-400 hover:text-gray-600">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            <p class="text-gray-600 mb-4">Add a new course or test series</p>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium mb-2">Course Name</label>
+                    <input type="text" placeholder="Enter course name" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-2">Description</label>
+                    <textarea rows="3" placeholder="Course description..." class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium mb-2">Price</label>
+                        <input type="number" placeholder="0" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-2">Offer Price</label>
+                        <input type="number" placeholder="0" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                </div>
+            </div>
+            <div class="flex justify-end gap-2 mt-6">
+                <button onclick="hideModal('createCourseModal')" class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-slate-200 bg-white hover:bg-slate-50 hover:text-slate-900 h-10 px-4 py-2">
+                    Cancel
+                </button>
+                <button class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-slate-900 text-white hover:bg-slate-800 shadow h-10 px-4 py-2">
+                    Create Course
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Profile Dropdown -->
+    <div id="profileDropdown" class="hidden fixed top-20 right-8 z-50">
+        <div class="dropdown-content">
+            <div class="px-3 py-2 border-b border-gray-200">
+                <p class="font-medium">John Doe</p>
+                <p class="text-sm text-gray-500">john@example.com</p>
+            </div>
+            <div class="py-1">
+                <a href="#" class="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-100">Profile</a>
+                <a href="#" class="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-100">Account Settings</a>
+                <div class="border-t border-gray-200 my-1"></div>
+                <a href="#" class="block px-3 py-2 text-sm text-red-600 hover:bg-gray-100">Logout</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="mt-8 p-4 bg-white rounded-lg border">
+        <h2 class="text-lg font-semibold mb-2">✅ Fixed Issues:</h2>
+        <ul class="text-sm space-y-1">
+            <li>✅ <strong>Modal Overlays</strong>: Solid black background with 50% opacity (not transparent)</li>
+            <li>✅ <strong>Modal Content</strong>: Solid white background (not transparent)</li>
+            <li>✅ <strong>Dropdown Menus</strong>: Solid white background with proper borders</li>
+            <li>✅ <strong>Button Backgrounds</strong>: Black primary buttons, white outline buttons</li>
+            <li>✅ <strong>All Popups</strong>: No transparency issues, proper visual separation</li>
+        </ul>
+
+        <h3 class="text-md font-semibold mt-4 mb-2">🔧 Components Fixed:</h3>
+        <ul class="text-xs space-y-1 text-gray-600">
+            <li>• Dialog, AlertDialog, Sheet, Drawer overlays: <code>bg-black bg-opacity-50</code></li>
+            <li>• Dialog, AlertDialog content: <code>bg-white</code></li>
+            <li>• DropdownMenu, Popover, HoverCard: <code>bg-white text-slate-950</code></li>
+            <li>• Select, Menubar, ContextMenu: <code>bg-white text-slate-950</code></li>
+            <li>• NavigationMenu: <code>bg-white text-slate-950</code></li>
+            <li>• Button variants: Solid colors instead of CSS variables</li>
+        </ul>
+    </div>
+
+    <script>
+        function showCreatePostModal() {
+            document.getElementById('createPostModal').classList.remove('hidden');
+        }
+
+        function showCreateCourseModal() {
+            document.getElementById('createCourseModal').classList.remove('hidden');
+        }
+
+        function showProfileDropdown() {
+            const dropdown = document.getElementById('profileDropdown');
+            dropdown.classList.toggle('hidden');
+        }
+
+        function hideModal(modalId) {
+            document.getElementById(modalId).classList.add('hidden');
+        }
+
+        // Close modals when clicking overlay
+        document.addEventListener('click', function(e) {
+            if (e.target.classList.contains('modal-overlay')) {
+                e.target.classList.add('hidden');
+            }
+        });
+
+        // Close dropdown when clicking outside
+        document.addEventListener('click', function(e) {
+            const dropdown = document.getElementById('profileDropdown');
+            if (!e.target.closest('#profileDropdown') && !e.target.closest('button[onclick="showProfileDropdown()"]')) {
+                dropdown.classList.add('hidden');
+            }
+        });
+    </script>
+</body>
+</html>

@@ -18,27 +18,19 @@ export default function CourseSelection({ user }: CourseSelectionProps) {
 
   useEffect(() => {
     dispatch(fetchCourses());
-  }, [dispatch]);
+  }, [dispatch, user]);
 
   // Icon mapping for different course types
   const getIconForCourse = (courseName: string) => {
     const name = courseName.toLowerCase();
-    if (name.includes('neet')) return <Stethoscope className="w-12 h-12" />;
-    if (name.includes('jee') && name.includes('advanced')) return <Atom className="w-12 h-12" />;
-    if (name.includes('jee')) return <Beaker className="w-12 h-12" />;
-    if (name.includes('cet')) return <Calculator className="w-12 h-12" />;
-    return <BookOpen className="w-12 h-12" />;
+    if (name.includes('neet')) return <Stethoscope className="w-8 h-8" />;
+    if (name.includes('jee') && name.includes('advanced')) return <Atom className="w-8 h-8" />;
+    if (name.includes('jee')) return <Beaker className="w-8 h-8" />;
+    if (name.includes('cet')) return <Calculator className="w-8 h-8" />;
+    return <BookOpen className="w-8 h-8" />;
   };
 
-  // Color mapping for different course types
-  const getColorForCourse = (courseName: string) => {
-    const name = courseName.toLowerCase();
-    if (name.includes('neet')) return 'from-pink-500 to-rose-500';
-    if (name.includes('jee') && name.includes('advanced')) return 'from-blue-500 to-cyan-500';
-    if (name.includes('jee')) return 'from-purple-500 to-violet-500';
-    if (name.includes('cet')) return 'from-green-500 to-emerald-500';
-    return 'from-gray-500 to-slate-500';
-  };
+
 
   if (isLoading) {
     return (
@@ -78,8 +70,28 @@ export default function CourseSelection({ user }: CourseSelectionProps) {
       <div className="container mx-auto px-4 py-8">
         {/* Welcome Section */}
         <div className="mb-8">
-          <h1 className="text-4xl mb-2">Welcome back, {user?.name}! 👋</h1>
-          <p className="text-xl text-gray-600">Choose your exam course to get started</p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-4xl mb-2">Welcome back, {user?.name}! 👋</h1>
+              <p className="text-xl text-gray-600">Choose your exam course to get started</p>
+            </div>
+            {user?.is_admin && (
+              <div className="flex flex-col gap-2">
+                <Link to="/admin/courses">
+                  <Button variant="outline" className="gap-2">
+                    <BookOpen className="w-4 h-4" />
+                    Manage Courses (Admin)
+                  </Button>
+                </Link>
+                <Link to="/admin">
+                  <Button variant="outline" className="gap-2">
+                    <Users className="w-4 h-4" />
+                    Admin Dashboard
+                  </Button>
+                </Link>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Stats Cards */}
@@ -121,35 +133,69 @@ export default function CourseSelection({ user }: CourseSelectionProps) {
 
         {/* Course Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {courses.map((course) => {
+          {courses.map((course, index) => {
+            // Use the same color scheme system as admin interface
+            const colorSchemes = [
+              { header: 'from-pink-500 to-pink-600', icon: 'from-pink-500 to-pink-600', iconBg: 'bg-pink-100 text-pink-600' },
+              { header: 'from-blue-500 to-blue-600', icon: 'from-blue-500 to-blue-600', iconBg: 'bg-blue-100 text-blue-600' },
+              { header: 'from-purple-500 to-purple-600', icon: 'from-purple-500 to-purple-600', iconBg: 'bg-purple-100 text-purple-600' },
+              { header: 'from-green-500 to-green-600', icon: 'from-green-500 to-green-600', iconBg: 'bg-green-100 text-green-600' },
+              { header: 'from-orange-500 to-orange-600', icon: 'from-orange-500 to-orange-600', iconBg: 'bg-orange-100 text-orange-600' },
+              { header: 'from-teal-500 to-teal-600', icon: 'from-teal-500 to-teal-600', iconBg: 'bg-teal-100 text-teal-600' }
+            ];
+            const colorScheme = colorSchemes[index % colorSchemes.length];
             const icon = getIconForCourse(course.course_name);
-            const color = getColorForCourse(course.course_name);
             const subjectCount = course.subjects?.length || 0;
+            const testCount = subjectCount * 50;
+            const studentCount = Math.floor(Math.random() * 20000) + 5000; // Mock student count
 
             return (
               <Card key={course.id} className="overflow-hidden hover:shadow-xl transition-all duration-300 group">
-                <div className={`h-2 bg-gradient-to-r ${color}`}></div>
-                <CardHeader>
+                {/* Colored Header */}
+                <div className={`h-2 bg-gradient-to-r ${colorScheme.header}`}></div>
+
+                <CardHeader className="pb-4">
                   <div className="flex items-start justify-between">
-                    <div className={`w-16 h-16 bg-gradient-to-br ${color} rounded-2xl flex items-center justify-center text-white mb-4 group-hover:scale-110 transition-transform`}>
+                    <div className={`w-16 h-16 ${colorScheme.iconBg} rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}>
                       {icon}
                     </div>
-                    <Badge variant="secondary">{subjectCount} Subjects</Badge>
-                  </div>
-                  <CardTitle className="text-2xl">{course.course_name}</CardTitle>
-                  <CardDescription className="text-base">{course.description}</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-
-                  {course.subjects && course.subjects.length > 0 && (
-                    <div className="flex flex-wrap gap-2">
-                      {course.subjects.map((subject) => (
-                        <Badge key={subject.id} variant="outline">
-                          {subject.subject_name}
-                        </Badge>
-                      ))}
+                    <div className="flex items-center gap-1 text-sm text-gray-600">
+                      <span className="font-medium">{testCount}</span>
+                      <span>Tests</span>
                     </div>
-                  )}
+                  </div>
+
+                  <div>
+                    <CardTitle className="text-2xl mb-2">{course.course_name}</CardTitle>
+                    <CardDescription className="text-gray-600 text-sm mb-3">{course.description}</CardDescription>
+                  </div>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  {/* Subject Tags */}
+                  <div className="flex flex-wrap gap-2 mb-4">
+                    {course.subjects && course.subjects.length > 0 ? (
+                      course.subjects.slice(0, 3).map((subject) => (
+                        <span key={subject.id} className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded-md">
+                          {subject.subject_name}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="px-2 py-1 bg-gray-100 text-gray-500 text-xs rounded-md">
+                        No subjects available
+                      </span>
+                    )}
+                    {subjectCount > 3 && (
+                      <span className="px-2 py-1 bg-gray-100 text-gray-500 text-xs rounded-md">
+                        +{subjectCount - 3} more
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Student Count */}
+                  <div className="flex items-center gap-2 text-sm text-gray-600 mb-4">
+                    <Users className="w-4 h-4" />
+                    <span>{studentCount.toLocaleString()} students</span>
+                  </div>
 
                   <div className="flex items-center justify-between pt-4 border-t">
                     <div className="flex items-center gap-2 text-sm text-gray-600">
@@ -157,7 +203,7 @@ export default function CourseSelection({ user }: CourseSelectionProps) {
                       <span>Comprehensive preparation</span>
                     </div>
                     <Link to={`/subjects/${course.id}`}>
-                      <Button className={`bg-gradient-to-r ${color}`}>
+                      <Button className={`bg-gradient-to-r ${colorScheme.icon} text-white hover:opacity-90 border-0`}>
                         Select Course
                       </Button>
                     </Link>

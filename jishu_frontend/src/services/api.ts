@@ -35,6 +35,9 @@ export interface Subject {
   id: number;
   subject_name: string;
   exam_category_id: number;
+  amount?: number;
+  offer_amount?: number;
+  max_tokens?: number;
   created_at: string;
 }
 
@@ -138,7 +141,7 @@ export const authApi = {
       body: JSON.stringify(data),
     }),
 
-  login: (data: { email: string; password: string }) =>
+  login: (data: { email: string; otp: string }) =>
     apiRequest<{ access_token: string; refresh_token: string; user: User }>('/api/auth/login', {
       method: 'POST',
       body: JSON.stringify(data),
@@ -221,13 +224,28 @@ export const questionsApi = {
 // Admin API
 export const adminApi = {
   // Courses management
-  createCourse: (data: { course_name: string; description: string }) =>
+  getCourses: () =>
+    apiRequest<{ courses: Course[] }>('/api/admin/courses'),
+
+  createCourse: (data: {
+    course_name: string;
+    description: string;
+    amount?: number;
+    offer_amount?: number;
+    max_tokens?: number;
+  }) =>
     apiRequest<{ course: Course }>('/api/admin/courses', {
       method: 'POST',
       body: JSON.stringify(data),
     }),
 
-  updateCourse: (id: number, data: { course_name: string; description: string }) =>
+  updateCourse: (id: number, data: {
+    course_name: string;
+    description: string;
+    amount?: number;
+    offer_amount?: number;
+    max_tokens?: number;
+  }) =>
     apiRequest<{ course: Course }>(`/api/admin/courses/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
@@ -239,13 +257,27 @@ export const adminApi = {
     }),
 
   // Subjects management
-  createSubject: (data: { exam_category_id: number; subject_name: string }) =>
+  getSubjects: (courseId: number) =>
+    apiRequest<{ subjects: Subject[] }>(`/api/subjects?course_id=${courseId}`),
+
+  createSubject: (data: {
+    course_id: number;
+    subject_name: string;
+    amount?: number;
+    offer_amount?: number;
+    max_tokens?: number;
+  }) =>
     apiRequest<{ subject: Subject }>('/api/admin/subjects', {
       method: 'POST',
       body: JSON.stringify(data),
     }),
 
-  updateSubject: (id: number, data: { subject_name: string }) =>
+  updateSubject: (id: number, data: {
+    subject_name?: string;
+    amount?: number;
+    offer_amount?: number;
+    max_tokens?: number;
+  }) =>
     apiRequest<{ subject: Subject }>(`/api/admin/subjects/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
@@ -259,6 +291,10 @@ export const adminApi = {
   // Users management
   getUsers: () =>
     apiRequest<{ users: User[] }>('/api/admin/users'),
+
+  // Stats
+  getStats: () =>
+    apiRequest<{ stats: any }>('/api/admin/stats'),
 
   deactivateUser: (id: number) =>
     apiRequest(`/api/admin/users/${id}/deactivate`, {

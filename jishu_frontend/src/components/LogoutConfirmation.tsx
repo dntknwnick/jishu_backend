@@ -35,9 +35,9 @@ export default function LogoutConfirmation({ onLogout }: LogoutConfirmationProps
           </div>
 
           <div className="space-y-3">
-            <Button 
-              size="lg" 
-              className="w-full bg-gradient-to-r from-blue-600 to-purple-600"
+            <Button
+              size="lg"
+              className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white border-0"
               onClick={handleLogout}
             >
               <LogOut className="w-5 h-5 mr-2" />

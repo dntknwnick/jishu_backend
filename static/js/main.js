@@ -105,7 +105,7 @@ const auth = {
     // Logout
     logout() {
         localStorage.removeItem('access_token');
-        localStorage.removeItem('user');
+        localStorage.removeItem('jishu_user');
     },
     
     // Check if user is authenticated
@@ -115,7 +115,7 @@ const auth = {
 
     // Get current user
     getCurrentUser() {
-        const userStr = localStorage.getItem('user');
+        const userStr = localStorage.getItem('jishu_user');
         return userStr ? JSON.parse(userStr) : null;
     },
 

@@ -30,10 +30,41 @@ def create_app(config_name='development'):
     # Initialize extensions
     db.init_app(app)
     jwt = JWTManager(app)
-    CORS(app, origins=app.config['CORS_ORIGINS'])
+
+    # JWT Configuration
+    @jwt.user_identity_loader
+    def user_identity_lookup(user):
+        return str(user)
+
+    @jwt.user_lookup_loader
+    def user_lookup_callback(_jwt_header, jwt_data):
+        identity = jwt_data["sub"]
+        # Handle both string and integer identities for backward compatibility
+        try:
+            user_id = int(identity) if isinstance(identity, (str, int)) else identity
+            return User.query.get(user_id)
+        except (ValueError, TypeError):
+            return None
+
+    CORS(app,
+         origins=app.config['CORS_ORIGINS'],
+         methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+         allow_headers=['Content-Type', 'Authorization'],
+         supports_credentials=True)
 
     # Initialize Google OAuth service
     google_oauth = create_google_oauth_service(app.config)
+
+    # CORS preflight handler
+    @app.before_request
+    def handle_preflight():
+        if request.method == "OPTIONS":
+            response = jsonify({'status': 'OK'})
+            response.headers.add("Access-Control-Allow-Origin", "*")
+            response.headers.add('Access-Control-Allow-Headers', "Content-Type,Authorization")
+            response.headers.add('Access-Control-Allow-Methods', "GET,PUT,POST,DELETE,OPTIONS")
+            response.headers.add('Access-Control-Allow-Credentials', "true")
+            return response
 
     # Health endpoint
     @app.route('/health', methods=['GET'])
@@ -53,7 +84,12 @@ def create_app(config_name='development'):
     def verify_token():
         try:
             user_id = get_jwt_identity()
-            user = User.query.get(user_id)
+            # Handle both string and integer identities for backward compatibility
+            try:
+                user_id_int = int(user_id) if isinstance(user_id, (str, int)) else user_id
+                user = User.query.get(user_id_int)
+            except (ValueError, TypeError):
+                return error_response("Invalid user identity", 401)
             if not user:
                 return error_response("User not found", 404)
             return success_response({
@@ -68,7 +104,7 @@ def create_app(config_name='development'):
         """Refresh access token using refresh token"""
         try:
             user_id = get_jwt_identity()
-            user = User.query.get(user_id)
+            user = User.query.get(int(user_id))
             if not user:
                 return error_response("User not found", 404)
 
@@ -91,10 +127,10 @@ def create_app(config_name='development'):
                 return error_response("Refresh token has expired", 401)
 
             # Generate new access token
-            new_access_token = create_access_token(identity=user.id)
+            new_access_token = create_access_token(identity=str(user.id))
 
             # Optionally generate new refresh token (rotate refresh tokens)
-            new_refresh_token = create_refresh_token(identity=user.id)
+            new_refresh_token = create_refresh_token(identity=str(user.id))
             refresh_expires_at = datetime.utcnow() + timedelta(seconds=app.config['JWT_REFRESH_TOKEN_EXPIRES'])
             user.set_refresh_token(new_refresh_token, refresh_expires_at)
 
@@ -118,7 +154,7 @@ def create_app(config_name='development'):
         """Logout user and invalidate refresh token"""
         try:
             user_id = get_jwt_identity()
-            user = User.query.get(user_id)
+            user = User.query.get(int(user_id))
             if not user:
                 return error_response("User not found", 404)
 
@@ -187,8 +223,8 @@ def create_app(config_name='development'):
             user.source = 'email'
 
             # Generate JWT tokens
-            access_token = create_access_token(identity=user.id)
-            refresh_token = create_refresh_token(identity=user.id)
+            access_token = create_access_token(identity=str(user.id))
+            refresh_token = create_refresh_token(identity=str(user.id))
 
             # Store refresh token
             refresh_expires_at = datetime.utcnow() + timedelta(seconds=app.config['JWT_REFRESH_TOKEN_EXPIRES'])
@@ -239,8 +275,8 @@ def create_app(config_name='development'):
             user.last_login = datetime.utcnow()
 
             # Generate JWT tokens
-            access_token = create_access_token(identity=user.id)
-            refresh_token = create_refresh_token(identity=user.id)
+            access_token = create_access_token(identity=str(user.id))
+            refresh_token = create_refresh_token(identity=str(user.id))
 
             # Store refresh token
             refresh_expires_at = datetime.utcnow() + timedelta(seconds=app.config['JWT_REFRESH_TOKEN_EXPIRES'])
@@ -497,6 +533,56 @@ def create_app(config_name='development'):
         except Exception as e:
             return error_response(f"Failed to get subjects: {str(e)}", 500)
 
+    @app.route('/api/admin/courses', methods=['GET'])
+    @admin_required
+    def api_admin_get_courses():
+        """Get all courses for admin management"""
+        try:
+            page = request.args.get('page', 1, type=int)
+            per_page = request.args.get('per_page', 50, type=int)  # Higher limit for admin
+
+            # Get all courses with pagination
+            courses_query = ExamCategory.query.order_by(ExamCategory.created_at.desc())
+            courses_paginated = courses_query.paginate(
+                page=page,
+                per_page=per_page,
+                error_out=False
+            )
+
+            courses_list = []
+            for course in courses_paginated.items:
+                # Get subject count for each course
+                subject_count = ExamCategorySubject.query.filter_by(exam_category_id=course.id).count()
+
+                course_data = {
+                    'id': course.id,
+                    'course_name': course.course_name,
+                    'description': course.description,
+                    'amount': float(course.amount) if course.amount else 0,
+                    'offer_amount': float(course.offer_amount) if course.offer_amount else 0,
+                    'max_tokens': course.max_tokens or 100,
+                    'status': 'active',  # Default status
+                    'subjects_count': subject_count,
+                    'created_at': course.created_at.isoformat() if course.created_at else None,
+                    'updated_at': course.updated_at.isoformat() if course.updated_at else None
+                }
+                courses_list.append(course_data)
+
+            return success_response({
+                'courses': courses_list,
+                'pagination': {
+                    'page': page,
+                    'per_page': per_page,
+                    'total': courses_paginated.total,
+                    'pages': courses_paginated.pages,
+                    'has_next': courses_paginated.has_next,
+                    'has_prev': courses_paginated.has_prev
+                }
+            }, "Courses retrieved successfully")
+
+        except Exception as e:
+            return error_response(f"Failed to get courses: {str(e)}", 500)
+
     @app.route('/api/admin/courses', methods=['POST'])
     @admin_required
     def api_admin_add_course():
@@ -505,6 +591,9 @@ def create_app(config_name='development'):
             data = request.get_json()
             course_name = data.get('course_name')
             description = data.get('description', '')
+            amount = data.get('amount', 0.00)
+            offer_amount = data.get('offer_amount', 0.00)
+            max_tokens = data.get('max_tokens', 0)
 
             # Validation
             if not course_name:
@@ -512,6 +601,17 @@ def create_app(config_name='development'):
 
             if len(course_name.strip()) < 2:
                 return error_response("Course name must be at least 2 characters long", 400)
+
+            # Validate pricing
+            try:
+                amount = float(amount) if amount else 0.00
+                offer_amount = float(offer_amount) if offer_amount else 0.00
+                max_tokens = int(max_tokens) if max_tokens else 0
+            except (ValueError, TypeError):
+                return error_response("Invalid pricing or token values", 400)
+
+            if amount < 0 or offer_amount < 0 or max_tokens < 0:
+                return error_response("Pricing and token values must be non-negative", 400)
 
             # Check if course already exists
             existing_course = ExamCategory.query.filter_by(course_name=course_name.strip()).first()
@@ -521,7 +621,10 @@ def create_app(config_name='development'):
             # Create new course
             new_course = ExamCategory(
                 course_name=course_name.strip(),
-                description=description.strip() if description else None
+                description=description.strip() if description else None,
+                amount=amount,
+                offer_amount=offer_amount,
+                max_tokens=max_tokens
             )
 
             db.session.add(new_course)
@@ -547,6 +650,9 @@ def create_app(config_name='development'):
             data = request.get_json()
             course_name = data.get('course_name')
             description = data.get('description')
+            amount = data.get('amount')
+            offer_amount = data.get('offer_amount')
+            max_tokens = data.get('max_tokens')
 
             # Validation
             if course_name:
@@ -565,6 +671,34 @@ def create_app(config_name='development'):
 
             if description is not None:
                 course.description = description.strip() if description else None
+
+            # Update pricing fields if provided
+            if amount is not None:
+                try:
+                    amount = float(amount)
+                    if amount < 0:
+                        return error_response("Amount must be non-negative", 400)
+                    course.amount = amount
+                except (ValueError, TypeError):
+                    return error_response("Invalid amount value", 400)
+
+            if offer_amount is not None:
+                try:
+                    offer_amount = float(offer_amount)
+                    if offer_amount < 0:
+                        return error_response("Offer amount must be non-negative", 400)
+                    course.offer_amount = offer_amount
+                except (ValueError, TypeError):
+                    return error_response("Invalid offer amount value", 400)
+
+            if max_tokens is not None:
+                try:
+                    max_tokens = int(max_tokens)
+                    if max_tokens < 0:
+                        return error_response("Max tokens must be non-negative", 400)
+                    course.max_tokens = max_tokens
+                except (ValueError, TypeError):
+                    return error_response("Invalid max tokens value", 400)
 
             db.session.commit()
 
@@ -609,6 +743,9 @@ def create_app(config_name='development'):
             data = request.get_json()
             course_id = data.get('course_id')
             subject_name = data.get('subject_name')
+            amount = data.get('amount', 0.00)
+            offer_amount = data.get('offer_amount', 0.00)
+            max_tokens = data.get('max_tokens', 100)
 
             if not course_id or not subject_name:
                 return error_response("course_id and subject_name are required", 400)
@@ -622,6 +759,17 @@ def create_app(config_name='development'):
             if len(subject_name.strip()) < 2:
                 return error_response("Subject name must be at least 2 characters long", 400)
 
+            # Validate pricing
+            try:
+                amount = float(amount) if amount else 0.00
+                offer_amount = float(offer_amount) if offer_amount else 0.00
+                max_tokens = int(max_tokens) if max_tokens else 100
+            except (ValueError, TypeError):
+                return error_response("Invalid pricing or token values", 400)
+
+            if amount < 0 or offer_amount < 0 or max_tokens < 0:
+                return error_response("Pricing and token values must be non-negative", 400)
+
             # Check if subject already exists in this course
             existing_subject = ExamCategorySubject.query.filter_by(
                 exam_category_id=course_id,
@@ -633,7 +781,10 @@ def create_app(config_name='development'):
             # Create new subject
             new_subject = ExamCategorySubject(
                 exam_category_id=course_id,
-                subject_name=subject_name.strip()
+                subject_name=subject_name.strip(),
+                amount=amount,
+                offer_amount=offer_amount,
+                max_tokens=max_tokens
             )
 
             db.session.add(new_subject)
@@ -658,24 +809,53 @@ def create_app(config_name='development'):
 
             data = request.get_json()
             subject_name = data.get('subject_name')
+            amount = data.get('amount')
+            offer_amount = data.get('offer_amount')
+            max_tokens = data.get('max_tokens')
 
-            if not subject_name:
-                return error_response("subject_name is required", 400)
+            # Validation for subject name
+            if subject_name:
+                if len(subject_name.strip()) < 2:
+                    return error_response("Subject name must be at least 2 characters long", 400)
 
-            # Validation
-            if len(subject_name.strip()) < 2:
-                return error_response("Subject name must be at least 2 characters long", 400)
+                # Check if another subject with same name exists in the same course
+                existing_subject = ExamCategorySubject.query.filter(
+                    ExamCategorySubject.exam_category_id == subject.exam_category_id,
+                    ExamCategorySubject.subject_name == subject_name.strip(),
+                    ExamCategorySubject.id != subject_id
+                ).first()
+                if existing_subject:
+                    return error_response("Subject with this name already exists in this course", 409)
 
-            # Check if another subject with same name exists in the same course
-            existing_subject = ExamCategorySubject.query.filter(
-                ExamCategorySubject.exam_category_id == subject.exam_category_id,
-                ExamCategorySubject.subject_name == subject_name.strip(),
-                ExamCategorySubject.id != subject_id
-            ).first()
-            if existing_subject:
-                return error_response("Subject with this name already exists in this course", 409)
+                subject.subject_name = subject_name.strip()
 
-            subject.subject_name = subject_name.strip()
+            # Update pricing fields if provided
+            if amount is not None:
+                try:
+                    amount = float(amount)
+                    if amount < 0:
+                        return error_response("Amount must be non-negative", 400)
+                    subject.amount = amount
+                except (ValueError, TypeError):
+                    return error_response("Invalid amount value", 400)
+
+            if offer_amount is not None:
+                try:
+                    offer_amount = float(offer_amount)
+                    if offer_amount < 0:
+                        return error_response("Offer amount must be non-negative", 400)
+                    subject.offer_amount = offer_amount
+                except (ValueError, TypeError):
+                    return error_response("Invalid offer amount value", 400)
+
+            if max_tokens is not None:
+                try:
+                    max_tokens = int(max_tokens)
+                    if max_tokens < 0:
+                        return error_response("Max tokens must be non-negative", 400)
+                    subject.max_tokens = max_tokens
+                except (ValueError, TypeError):
+                    return error_response("Invalid max tokens value", 400)
             db.session.commit()
 
             return success_response({
@@ -722,8 +902,8 @@ def create_app(config_name='development'):
             tags = request.args.get('tags', '').strip()
             featured = request.args.get('featured', '').lower()
 
-            # Build query
-            query = BlogPost.query.filter_by(status='published')
+            # Build query - exclude deleted posts
+            query = BlogPost.query.filter_by(status='published', is_deleted=False)
 
             if search:
                 query = query.filter(
@@ -759,6 +939,40 @@ def create_app(config_name='development'):
 
         except Exception as e:
             return error_response(f"Failed to get posts: {str(e)}", 500)
+
+    @app.route('/api/community/posts/<int:post_id>/comments', methods=['GET'])
+    def api_get_post_comments(post_id):
+        """Get comments for a specific post (public endpoint)"""
+        try:
+            page = request.args.get('page', 1, type=int)
+            per_page = request.args.get('per_page', 20, type=int)
+
+            # Check if post exists and is not deleted
+            post = BlogPost.query.filter_by(id=post_id, is_deleted=False).first()
+            if not post:
+                return error_response("Post not found", 404)
+
+            # Get comments for the post, excluding deleted ones
+            query = BlogComment.query.filter_by(post_id=post_id, is_deleted=False)
+            query = query.order_by(BlogComment.created_at.asc())
+
+            # Paginate results
+            comments = query.paginate(page=page, per_page=per_page, error_out=False)
+
+            return success_response({
+                'comments': [comment.to_dict(include_user=True, include_replies=True) for comment in comments.items],
+                'pagination': {
+                    'page': comments.page,
+                    'pages': comments.pages,
+                    'per_page': comments.per_page,
+                    'total': comments.total,
+                    'has_next': comments.has_next,
+                    'has_prev': comments.has_prev
+                }
+            }, "Comments retrieved successfully")
+
+        except Exception as e:
+            return error_response(f"Failed to get comments: {str(e)}", 500)
 
     @app.route('/api/community/posts', methods=['POST'])
     @user_required
@@ -907,12 +1121,14 @@ def create_app(config_name='development'):
             if comment.user_id != user.id:
                 return error_response("You can only delete your own comments", 403)
 
+            # Soft delete the comment
+            comment.is_deleted = True
+
             # Get the post to update comment count
             post = BlogPost.query.get(comment.post_id)
             if post:
                 post.comments_count = max(0, post.comments_count - 1)
 
-            db.session.delete(comment)
             db.session.commit()
 
             return success_response({
@@ -940,7 +1156,8 @@ def create_app(config_name='development'):
             if post.user_id != user.id:
                 return error_response("You can only delete your own posts", 403)
 
-            db.session.delete(post)
+            # Soft delete the post
+            post.is_deleted = True
             db.session.commit()
 
             return success_response({
@@ -1007,7 +1224,8 @@ def create_app(config_name='development'):
             if not post:
                 return error_response("Post not found", 404)
 
-            db.session.delete(post)
+            # Soft delete the post
+            post.is_deleted = True
             db.session.commit()
 
             return success_response({
@@ -1053,12 +1271,14 @@ def create_app(config_name='development'):
             if not comment:
                 return error_response("Comment not found", 404)
 
+            # Soft delete the comment
+            comment.is_deleted = True
+
             # Get the post to update comment count
             post = BlogPost.query.get(comment.post_id)
             if post:
                 post.comments_count = max(0, post.comments_count - 1)
 
-            db.session.delete(comment)
             db.session.commit()
 
             return success_response({
@@ -1068,6 +1288,57 @@ def create_app(config_name='development'):
         except Exception as e:
             db.session.rollback()
             return error_response(f"Failed to delete comment: {str(e)}", 500)
+
+    # AI Token Limit Helper Functions
+    def get_user_token_limits(user):
+        """Get user's daily token limits based on purchases"""
+        from shared.models.purchase import ExamCategoryPurchase
+
+        # Default daily limit
+        daily_limit = 50
+
+        # Check if user has purchased any courses or subjects
+        purchases = ExamCategoryPurchase.query.filter_by(user_id=user.id).all()
+
+        max_tokens = daily_limit
+        for purchase in purchases:
+            if purchase.course_id and not purchase.subject_id:
+                # Full course purchase
+                course = ExamCategory.query.get(purchase.course_id)
+                if course and course.max_tokens == 0:
+                    return 0  # Unlimited tokens
+                elif course and course.max_tokens > max_tokens:
+                    max_tokens = course.max_tokens
+            elif purchase.subject_id:
+                # Subject purchase
+                subject = ExamCategorySubject.query.get(purchase.subject_id)
+                if subject and subject.max_tokens > max_tokens:
+                    max_tokens = subject.max_tokens
+
+        return max_tokens
+
+    def check_daily_token_limit(user, tokens_needed=1):
+        """Check if user has enough tokens for today"""
+        today = datetime.utcnow().date()
+
+        # Get today's token usage
+        today_usage = db.session.query(db.func.sum(AIChatHistory.tokens_used)).filter(
+            AIChatHistory.user_id == user.id,
+            db.func.date(AIChatHistory.created_at) == today
+        ).scalar() or 0
+
+        # Get user's token limit
+        token_limit = get_user_token_limits(user)
+
+        # Unlimited tokens (0 means unlimited)
+        if token_limit == 0:
+            return True, token_limit, today_usage
+
+        # Check if user has enough tokens
+        if today_usage + tokens_needed <= token_limit:
+            return True, token_limit, today_usage
+        else:
+            return False, token_limit, today_usage
 
     # AI Chatbot Endpoints
     @app.route('/api/ai/chat', methods=['POST'])
@@ -1094,6 +1365,18 @@ def create_app(config_name='development'):
 
             if not is_academic:
                 return error_response("Please ask only academic/educational questions", 400)
+
+            # Estimate tokens needed (simple estimation)
+            estimated_tokens = len(message.split()) + 50  # Estimate response tokens
+
+            # Check token limits
+            can_proceed, token_limit, tokens_used_today = check_daily_token_limit(user, estimated_tokens)
+            if not can_proceed:
+                return error_response(
+                    f"Daily token limit exceeded. You have used {tokens_used_today}/{token_limit} tokens today. "
+                    f"Purchase a course or subject to get more tokens.",
+                    429
+                )
 
             # TODO: Integrate with Ollama model here
             # For now, we'll return a placeholder response
@@ -1137,15 +1420,202 @@ def create_app(config_name='development'):
 
             db.session.commit()
 
+            # Get updated token usage
+            _, token_limit, tokens_used_today = check_daily_token_limit(user, 0)
+
             return success_response({
                 'response': ai_response,
                 'tokens_used': tokens_used,
-                'session_id': session_id
+                'session_id': session_id,
+                'token_info': {
+                    'tokens_used_today': tokens_used_today + tokens_used,
+                    'daily_limit': token_limit,
+                    'remaining_tokens': max(0, token_limit - (tokens_used_today + tokens_used)) if token_limit > 0 else 'unlimited'
+                }
             }, "AI response generated successfully")
 
         except Exception as e:
             db.session.rollback()
             return error_response(f"Failed to process AI chat: {str(e)}", 500)
+
+    @app.route('/api/ai/token-status', methods=['GET'])
+    @user_required
+    def api_get_token_status():
+        """Get user's current token usage and limits"""
+        try:
+            user = get_current_user()
+            if not user:
+                return error_response("User not found", 404)
+
+            # Get token limits and usage
+            _, token_limit, tokens_used_today = check_daily_token_limit(user, 0)
+
+            return success_response({
+                'tokens_used_today': tokens_used_today,
+                'daily_limit': token_limit,
+                'remaining_tokens': max(0, token_limit - tokens_used_today) if token_limit > 0 else 'unlimited',
+                'is_unlimited': token_limit == 0
+            }, "Token status retrieved successfully")
+
+        except Exception as e:
+            return error_response(f"Failed to get token status: {str(e)}", 500)
+
+    # Purchase Endpoints
+    @app.route('/api/purchases', methods=['POST'])
+    @user_required
+    def api_create_purchase():
+        """Create a new purchase (Demo - no payment processing)"""
+        try:
+            user = get_current_user()
+            if not user:
+                return error_response("User not found", 404)
+
+            data = request.get_json()
+            course_id = data.get('course_id')
+            subject_id = data.get('subject_id')
+            payment_method = data.get('payment_method', 'demo')
+
+            # Validation
+            if not course_id:
+                return error_response("Course ID is required", 400)
+
+            # Check if course exists
+            course = ExamCategory.query.get(course_id)
+            if not course:
+                return error_response("Course not found", 404)
+
+            # Check if subject exists (if provided)
+            subject = None
+            if subject_id:
+                subject = ExamCategorySubject.query.get(subject_id)
+                if not subject or subject.exam_category_id != course_id:
+                    return error_response("Subject not found or doesn't belong to this course", 404)
+
+            # Calculate cost
+            if subject:
+                cost = subject.offer_amount if subject.offer_amount > 0 else subject.amount
+            else:
+                cost = course.offer_amount if course.offer_amount > 0 else course.amount
+
+            # Check if user already purchased this item
+            existing_purchase = ExamCategoryPurchase.query.filter_by(
+                user_id=user.id,
+                exam_category_id=course_id,
+                subject_id=subject_id
+            ).first()
+
+            if existing_purchase:
+                return error_response("You have already purchased this item", 409)
+
+            # Create purchase record (demo - no actual payment processing)
+            purchase = ExamCategoryPurchase(
+                user_id=user.id,
+                exam_category_id=course_id,
+                subject_id=subject_id,
+                cost=cost,
+                no_of_attempts=3,
+                attempts_used=0,
+                status='active'
+            )
+
+            db.session.add(purchase)
+            db.session.commit()
+
+            return success_response({
+                'purchase': purchase.to_dict(),
+                'message': 'Purchase completed successfully! You now have access to the content.'
+            }, "Purchase created successfully")
+
+        except Exception as e:
+            db.session.rollback()
+            return error_response(f"Failed to create purchase: {str(e)}", 500)
+
+    @app.route('/api/purchases', methods=['GET'])
+    @user_required
+    def api_get_user_purchases():
+        """Get current user's purchases"""
+        try:
+            user = get_current_user()
+            if not user:
+                return error_response("User not found", 404)
+
+            page = request.args.get('page', 1, type=int)
+            per_page = request.args.get('per_page', 10, type=int)
+
+            # Get user's purchases
+            purchases = ExamCategoryPurchase.query.filter_by(user_id=user.id).order_by(
+                ExamCategoryPurchase.purchase_date.desc()
+            ).paginate(page=page, per_page=per_page, error_out=False)
+
+            return success_response({
+                'purchases': [purchase.to_dict() for purchase in purchases.items],
+                'pagination': {
+                    'page': purchases.page,
+                    'pages': purchases.pages,
+                    'per_page': purchases.per_page,
+                    'total': purchases.total,
+                    'has_next': purchases.has_next,
+                    'has_prev': purchases.has_prev
+                }
+            }, "Purchases retrieved successfully")
+
+        except Exception as e:
+            return error_response(f"Failed to get purchases: {str(e)}", 500)
+
+    @app.route('/api/create-test-user', methods=['POST'])
+    def api_create_test_user():
+        """Create a test user account for demo purposes"""
+        try:
+            # Check if test user already exists
+            existing_user = User.query.filter_by(email_id='testuser@jishu.com').first()
+            if existing_user:
+                # Generate JWT tokens for existing user
+                access_token = create_access_token(identity=str(existing_user.id))
+                refresh_token = create_refresh_token(identity=str(existing_user.id))
+
+                return success_response({
+                    'user': existing_user.to_dict(),
+                    'access_token': access_token,
+                    'refresh_token': refresh_token,
+                    'message': 'Test user already exists'
+                }, "Test user retrieved successfully")
+
+            # Create test user
+            test_user = User(
+                name='Test Admin User',
+                email_id='testuser@jishu.com',
+                mobile_no='9999999999',
+                otp_verified=True,
+                is_admin=True,  # Make this user an admin for testing
+                color_theme='light',
+                status='active',
+                auth_provider='manual',
+                source='test'
+            )
+
+            db.session.add(test_user)
+            db.session.flush()  # Get the user ID
+
+            # Generate JWT tokens
+            access_token = create_access_token(identity=str(test_user.id))
+            refresh_token = create_refresh_token(identity=str(test_user.id))
+
+            # Store refresh token
+            refresh_expires_at = datetime.utcnow() + timedelta(seconds=app.config['JWT_REFRESH_TOKEN_EXPIRES'])
+            test_user.set_refresh_token(refresh_token, refresh_expires_at)
+
+            db.session.commit()
+
+            return success_response({
+                'user': test_user.to_dict(),
+                'access_token': access_token,
+                'refresh_token': refresh_token,
+                'message': 'Test admin user created successfully. You can now use the provided tokens.'
+            }, "Test user created successfully")
+
+        except Exception as e:
+            db.session.rollback()
+            return error_response(f"Failed to create test user: {str(e)}", 500)
 
     @app.route('/api/admin/chat/tokens', methods=['GET'])
     @admin_required
@@ -1784,11 +2254,22 @@ def create_app(config_name='development'):
     def api_admin_get_users():
         """List all users (Admin only)"""
         try:
+            # Validate pagination parameters
             page = request.args.get('page', 1, type=int)
             per_page = request.args.get('per_page', 10, type=int)
+
+            if page < 1:
+                return error_response("Page number must be greater than 0", 422)
+            if per_page < 1 or per_page > 100:
+                return error_response("Per page must be between 1 and 100", 422)
+
             status = request.args.get('status')
             source = request.args.get('source')
             search = request.args.get('search', '').strip()
+
+            # Validate status parameter
+            if status and status not in ['active', 'inactive', 'blocked']:
+                return error_response("Invalid status. Must be 'active', 'inactive', or 'blocked'", 422)
 
             # Build query
             query = User.query
@@ -1799,10 +2280,8 @@ def create_app(config_name='development'):
                 query = query.filter(User.source == source)
             if search:
                 query = query.filter(
-                    db.or_(
-                        User.name.ilike(f'%{search}%'),
-                        User.email_id.ilike(f'%{search}%')
-                    )
+                    (User.name.ilike(f'%{search}%')) |
+                    (User.email_id.ilike(f'%{search}%'))
                 )
 
             # Order by creation date (newest first)
@@ -1824,6 +2303,9 @@ def create_app(config_name='development'):
             }, "Users retrieved successfully")
 
         except Exception as e:
+            import traceback
+            print(f"Error in api_admin_get_users: {str(e)}")
+            print(f"Traceback: {traceback.format_exc()}")
             return error_response(f"Failed to get users: {str(e)}", 500)
 
     @app.route('/api/admin/users/<int:user_id>/deactivate', methods=['PUT'])
@@ -1924,6 +2406,86 @@ def create_app(config_name='development'):
         except Exception as e:
             return error_response(f"Failed to get user AI token usage: {str(e)}", 500)
 
+    @app.route('/api/admin/stats', methods=['GET'])
+    @admin_required
+    def api_admin_get_stats():
+        """Get admin dashboard statistics (Admin only)"""
+        try:
+            # Get total users count
+            total_users = User.query.count()
+            active_users = User.query.filter_by(status='active').count()
+
+            # Get total courses and subjects
+            total_courses = ExamCategory.query.count()
+            total_subjects = ExamCategorySubject.query.count()
+
+            # Get total blog posts
+            total_posts = BlogPost.query.count()
+            published_posts = BlogPost.query.filter_by(status='published').count()
+
+            # Get total purchases (if Purchase model exists)
+            total_purchases = 0
+            total_revenue = 0
+            try:
+                from shared.models.purchase import Purchase
+                total_purchases = Purchase.query.count()
+                # Calculate total revenue (assuming amount is in paisa/cents)
+                revenue_result = db.session.query(db.func.sum(Purchase.amount)).scalar()
+                total_revenue = revenue_result or 0
+            except ImportError:
+                # Purchase model doesn't exist yet
+                pass
+
+            # Get AI chat statistics
+            total_ai_queries = 0
+            total_tokens_used = 0
+            try:
+                from shared.models.ai_chat import UserAIStats
+                ai_stats = db.session.query(
+                    db.func.sum(UserAIStats.total_queries),
+                    db.func.sum(UserAIStats.total_tokens_used)
+                ).first()
+                total_ai_queries = ai_stats[0] or 0
+                total_tokens_used = ai_stats[1] or 0
+            except ImportError:
+                # AI models don't exist yet
+                pass
+
+            # Calculate average score (placeholder - implement based on your test results model)
+            average_score = 75.5  # Placeholder value
+
+            # Get recent activity counts (last 30 days)
+            from datetime import datetime, timedelta
+            thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+
+            recent_users = User.query.filter(User.created_at >= thirty_days_ago).count()
+            recent_posts = BlogPost.query.filter(BlogPost.created_at >= thirty_days_ago).count()
+
+            stats = {
+                'totalUsers': total_users,
+                'activeUsers': active_users,
+                'totalCourses': total_courses,
+                'totalSubjects': total_subjects,
+                'totalPosts': total_posts,
+                'publishedPosts': published_posts,
+                'totalPurchases': total_purchases,
+                'totalRevenue': total_revenue,
+                'totalAIQueries': total_ai_queries,
+                'totalTokensUsed': total_tokens_used,
+                'averageScore': average_score,
+                'recentUsers': recent_users,
+                'recentPosts': recent_posts,
+                'totalTests': total_subjects,  # Using subjects as tests for now
+                'monthlyRevenue': total_revenue  # Same as total for now
+            }
+
+            return success_response({
+                'stats': stats
+            }, "Admin statistics retrieved successfully")
+
+        except Exception as e:
+            return error_response(f"Failed to get admin statistics: {str(e)}", 500)
+
     # --- GOOGLE OAUTH ENDPOINTS (LEGACY - KEEPING FOR COMPATIBILITY) ---
     @app.route('/auth/google', methods=['GET'])
     def google_auth():
@@ -1988,8 +2550,8 @@ def create_app(config_name='development'):
                 user.otp_verified = True  # Google users are automatically verified
 
                 # Generate JWT tokens
-                access_token = create_access_token(identity=user.id)
-                refresh_token = create_refresh_token(identity=user.id)
+                access_token = create_access_token(identity=str(user.id))
+                refresh_token = create_refresh_token(identity=str(user.id))
 
                 # Store refresh token in database
                 refresh_expires_at = datetime.utcnow() + timedelta(seconds=app.config['JWT_REFRESH_TOKEN_EXPIRES'])
@@ -2017,8 +2579,8 @@ def create_app(config_name='development'):
                 )
 
                 # Generate JWT tokens
-                access_token = create_access_token(identity=new_user.id)
-                refresh_token = create_refresh_token(identity=new_user.id)
+                access_token = create_access_token(identity=str(new_user.id))
+                refresh_token = create_refresh_token(identity=str(new_user.id))
 
                 # Store refresh token in database
                 refresh_expires_at = datetime.utcnow() + timedelta(seconds=app.config['JWT_REFRESH_TOKEN_EXPIRES'])
@@ -2037,13 +2599,104 @@ def create_app(config_name='development'):
             db.session.rollback()
             return error_response(f"Google OAuth callback failed: {str(e)}", 500)
 
+    @app.route('/api/auth/google/verify', methods=['POST'])
+    def api_google_verify():
+        """Verify Google OAuth authorization code from frontend"""
+        try:
+            if not google_oauth:
+                return error_response("Google OAuth not configured", 503)
+
+            data = request.get_json()
+            authorization_code = data.get('code')
+
+            if not authorization_code:
+                return error_response("Authorization code not provided", 400)
+
+            # Exchange code for user info
+            success, user_info = google_oauth.exchange_code_for_token(authorization_code)
+            if not success:
+                return error_response(f"Failed to get user info from Google: {user_info}", 400)
+
+            # Extract user information
+            email = user_info.get('email')
+            name = user_info.get('name')
+            google_id = user_info.get('id')
+
+            if not email or not name or not google_id:
+                return error_response("Incomplete user information from Google", 400)
+
+            # Check if user exists
+            user = User.query.filter_by(email_id=email).first()
+
+            if user:
+                # User exists - update Google ID if not set and log them in
+                if not user.google_id:
+                    user.google_id = google_id
+                    user.auth_provider = 'google'
+                    user.source = 'google'
+
+                user.last_login = datetime.utcnow()
+                user.otp_verified = True  # Google users are automatically verified
+
+                # Generate JWT tokens
+                access_token = create_access_token(identity=str(user.id))
+                refresh_token = create_refresh_token(identity=str(user.id))
+
+                # Store refresh token in database
+                refresh_expires_at = datetime.utcnow() + timedelta(seconds=app.config['JWT_REFRESH_TOKEN_EXPIRES'])
+                user.set_refresh_token(refresh_token, refresh_expires_at)
+
+                db.session.commit()
+
+                return success_response({
+                    'user': user.to_dict(),
+                    'access_token': access_token,
+                    'refresh_token': refresh_token
+                }, "Login successful with Google")
+
+            else:
+                # User doesn't exist - create new user
+                new_user = User(
+                    name=name,
+                    email_id=email,
+                    google_id=google_id,
+                    auth_provider='google',
+                    source='google',
+                    otp_verified=True,
+                    is_verified=True,
+                    role='user'
+                )
+
+                db.session.add(new_user)
+                db.session.flush()  # Get the user ID
+
+                # Generate JWT tokens
+                access_token = create_access_token(identity=str(new_user.id))
+                refresh_token = create_refresh_token(identity=str(new_user.id))
+
+                # Store refresh token in database
+                refresh_expires_at = datetime.utcnow() + timedelta(seconds=app.config['JWT_REFRESH_TOKEN_EXPIRES'])
+                new_user.set_refresh_token(refresh_token, refresh_expires_at)
+
+                db.session.commit()
+
+                return success_response({
+                    'user': new_user.to_dict(),
+                    'access_token': access_token,
+                    'refresh_token': refresh_token
+                }, "Registration and login successful with Google")
+
+        except Exception as e:
+            db.session.rollback()
+            return error_response(f"Google OAuth verification failed: {str(e)}", 500)
+
     # --- USER ENDPOINTS ---
     @app.route('/profile', methods=['GET'])
     @jwt_required()
     def get_profile():
         try:
             user_id = get_jwt_identity()
-            user = User.query.get(user_id)
+            user = User.query.get(int(user_id))
             if not user:
                 return error_response("User not found", 404)
             if user.is_admin:
@@ -2057,7 +2710,7 @@ def create_app(config_name='development'):
     def update_profile():
         try:
             user_id = get_jwt_identity()
-            user = User.query.get(user_id)
+            user = User.query.get(int(user_id))
             if not user:
                 return error_response("User not found", 404)
             if user.is_admin:
@@ -2095,7 +2748,7 @@ def create_app(config_name='development'):
     def get_users():
         try:
             user_id = get_jwt_identity()
-            current_user = User.query.get(user_id)
+            current_user = User.query.get(int(user_id))
             if not current_user or not current_user.is_admin:
                 return error_response("Admin access required", 403)
             page = request.args.get('page', 1, type=int)
@@ -2124,7 +2777,7 @@ def create_app(config_name='development'):
     def update_user_status():
         try:
             current_user_id = get_jwt_identity()
-            current_user = User.query.get(current_user_id)
+            current_user = User.query.get(int(current_user_id))
             if not current_user or not current_user.is_admin:
                 return error_response("Admin access required", 403)
             user_id = request.view_args['user_id']
@@ -2150,7 +2803,7 @@ def create_app(config_name='development'):
         """Add a new course/exam category (Admin only)"""
         try:
             user_id = get_jwt_identity()
-            current_user = User.query.get(user_id)
+            current_user = User.query.get(int(user_id))
 
             # Check admin privileges
             if not current_user or not current_user.is_admin:
@@ -2195,7 +2848,7 @@ def create_app(config_name='development'):
         """Get all courses with optional filtering"""
         try:
             user_id = get_jwt_identity()
-            current_user = User.query.get(user_id)
+            current_user = User.query.get(int(user_id))
             if not current_user:
                 return error_response("User not found", 404)
 
@@ -2238,7 +2891,7 @@ def create_app(config_name='development'):
         """Get a specific course by ID"""
         try:
             user_id = get_jwt_identity()
-            current_user = User.query.get(user_id)
+            current_user = User.query.get(int(user_id))
             if not current_user:
                 return error_response("User not found", 404)
 
@@ -2261,7 +2914,7 @@ def create_app(config_name='development'):
         """Update a course (Admin only)"""
         try:
             user_id = get_jwt_identity()
-            current_user = User.query.get(user_id)
+            current_user = User.query.get(int(user_id))
 
             # Check admin privileges
             if not current_user or not current_user.is_admin:
@@ -2310,7 +2963,7 @@ def create_app(config_name='development'):
         """Delete a course (Admin only)"""
         try:
             user_id = get_jwt_identity()
-            current_user = User.query.get(user_id)
+            current_user = User.query.get(int(user_id))
 
             # Check admin privileges
             if not current_user or not current_user.is_admin:
@@ -2340,7 +2993,7 @@ def create_app(config_name='development'):
         """Add a subject to a course (Admin only)"""
         try:
             user_id = get_jwt_identity()
-            current_user = User.query.get(user_id)
+            current_user = User.query.get(int(user_id))
 
             # Check admin privileges
             if not current_user or not current_user.is_admin:
@@ -2393,7 +3046,7 @@ def create_app(config_name='development'):
         """Get all subjects for a specific course"""
         try:
             user_id = get_jwt_identity()
-            current_user = User.query.get(user_id)
+            current_user = User.query.get(int(user_id))
             if not current_user:
                 return error_response("User not found", 404)
 
@@ -2441,7 +3094,7 @@ def create_app(config_name='development'):
         """Get a specific subject by ID"""
         try:
             user_id = get_jwt_identity()
-            current_user = User.query.get(user_id)
+            current_user = User.query.get(int(user_id))
             if not current_user:
                 return error_response("User not found", 404)
 
@@ -2463,7 +3116,7 @@ def create_app(config_name='development'):
         """Update a subject (Admin only)"""
         try:
             user_id = get_jwt_identity()
-            current_user = User.query.get(user_id)
+            current_user = User.query.get(int(user_id))
 
             # Check admin privileges
             if not current_user or not current_user.is_admin:
@@ -2511,7 +3164,7 @@ def create_app(config_name='development'):
         """Delete a subject (Admin only)"""
         try:
             user_id = get_jwt_identity()
-            current_user = User.query.get(user_id)
+            current_user = User.query.get(int(user_id))
 
             # Check admin privileges
             if not current_user or not current_user.is_admin:

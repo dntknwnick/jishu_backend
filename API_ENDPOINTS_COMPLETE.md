@@ -1271,8 +1271,21 @@ GET /api/community/posts?page=1&per_page=5&tags=physics,tips&featured=true
   "data": {
     "response": "Photosynthesis is a vital biological process where plants convert light energy into chemical energy. It involves two main stages: light-dependent reactions and the Calvin cycle. This process is crucial for the ecosystem as it produces oxygen and serves as the foundation of most food chains.",
     "tokens_used": 52,
-    "session_id": "biology_session_456"
+    "session_id": "biology_session_456",
+    "token_info": {
+      "tokens_used_today": 127,
+      "daily_limit": 100,
+      "remaining_tokens": 23
+    }
   }
+}
+```
+
+**Error Response (429 - Token Limit Exceeded)**:
+```json
+{
+  "success": false,
+  "message": "Daily token limit exceeded. You have used 100/100 tokens today. Purchase a course or subject to get more tokens."
 }
 ```
 
@@ -1331,6 +1344,152 @@ GET /api/admin/chat/tokens?page=1&per_page=5&month_year=2024-01
       "has_next": true,
       "has_prev": false
     }
+  }
+}
+```
+
+### 3. Get AI Token Status
+**Endpoint**: `GET /api/ai/token-status`
+**Auth**: Bearer Token (User)
+**Description**: Get current user's AI token usage and limits
+
+**Success Response (200)**:
+```json
+{
+  "success": true,
+  "message": "Token status retrieved successfully",
+  "data": {
+    "tokens_used_today": 25,
+    "daily_limit": 100,
+    "remaining_tokens": 75,
+    "is_unlimited": false
+  }
+}
+```
+
+---
+
+## 💳 Purchase Management
+
+### 1. Create Purchase (Demo)
+**Endpoint**: `POST /api/purchases`
+**Auth**: Bearer Token (User)
+**Description**: Create a new purchase for course or subject (demo - no payment processing)
+
+**Request Body**:
+```json
+{
+  "course_id": 1,
+  "subject_id": 2,
+  "payment_method": "demo"
+}
+```
+
+**Success Response (200)**:
+```json
+{
+  "success": true,
+  "message": "Purchase created successfully",
+  "data": {
+    "purchase": {
+      "id": 15,
+      "user_id": 3,
+      "exam_category_id": 1,
+      "subject_id": 2,
+      "cost": 299.00,
+      "no_of_attempts": 3,
+      "attempts_used": 0,
+      "total_marks": null,
+      "marks_scored": 0,
+      "purchase_date": "2024-01-15T12:00:00Z",
+      "last_attempt_date": null,
+      "status": "active",
+      "exam_category_name": "UPSC Civil Services",
+      "subject_name": "General Studies Paper 2"
+    },
+    "message": "Purchase completed successfully! You now have access to the content."
+  }
+}
+```
+
+**Error Response (409 - Already Purchased)**:
+```json
+{
+  "success": false,
+  "message": "You have already purchased this item"
+}
+```
+
+### 2. Get User Purchases
+**Endpoint**: `GET /api/purchases`
+**Auth**: Bearer Token (User)
+**Description**: Get current user's purchase history
+
+**Query Parameters**:
+- `page` (optional): Page number (default: 1)
+- `per_page` (optional): Items per page (default: 10)
+
+**Success Response (200)**:
+```json
+{
+  "success": true,
+  "message": "Purchases retrieved successfully",
+  "data": {
+    "purchases": [
+      {
+        "id": 15,
+        "user_id": 3,
+        "exam_category_id": 1,
+        "subject_id": 2,
+        "cost": 299.00,
+        "no_of_attempts": 3,
+        "attempts_used": 1,
+        "total_marks": 100,
+        "marks_scored": 85,
+        "purchase_date": "2024-01-15T12:00:00Z",
+        "last_attempt_date": "2024-01-16T14:30:00Z",
+        "status": "active",
+        "exam_category_name": "UPSC Civil Services",
+        "subject_name": "General Studies Paper 2"
+      }
+    ],
+    "pagination": {
+      "page": 1,
+      "pages": 1,
+      "per_page": 10,
+      "total": 1,
+      "has_next": false,
+      "has_prev": false
+    }
+  }
+}
+```
+
+---
+
+## 🧪 Test User Creation
+
+### 1. Create Test User
+**Endpoint**: `POST /api/create-test-user`
+**Auth**: None
+**Description**: Create a test user account for demo purposes
+
+**Success Response (200)**:
+```json
+{
+  "success": true,
+  "message": "Test user created successfully",
+  "data": {
+    "user": {
+      "id": 100,
+      "name": "Test User",
+      "email_id": "testuser@jishu.com",
+      "mobile_no": "9999999999",
+      "role": "user",
+      "is_verified": true,
+      "color_theme": "light"
+    },
+    "message": "Test user created successfully. You can now login with email: testuser@jishu.com"
   }
 }
 ```

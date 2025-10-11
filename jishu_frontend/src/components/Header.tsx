@@ -11,6 +11,7 @@ import {
 } from './ui/dropdown-menu';
 import { Target, BookOpen, BarChart3, Users, MessageSquare, Menu, Settings, LogOut, User, Shield } from 'lucide-react';
 import { Sheet, SheetContent, SheetTrigger } from './ui/sheet';
+import ThemeToggle from './ThemeToggle';
 
 interface HeaderProps {
   user: any;
@@ -19,7 +20,12 @@ interface HeaderProps {
 export default function Header({ user }: HeaderProps) {
   const location = useLocation();
   const navigate = useNavigate();
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = user?.is_admin === true;
+
+  // Debug: Log admin status
+  console.log('Header - User:', user);
+  console.log('Header - Is Admin:', isAdmin);
+  console.log('Header - user.is_admin:', user?.is_admin);
 
   const userNavItems = [
     { path: '/courses', label: 'Courses', icon: <BookOpen className="w-4 h-4" /> },
@@ -75,6 +81,7 @@ export default function Header({ user }: HeaderProps) {
 
         {/* User Menu */}
         <div className="flex items-center gap-2">
+          <ThemeToggle />
           {/* Mobile Menu */}
           <Sheet>
             <SheetTrigger asChild className="md:hidden">
@@ -111,8 +118,16 @@ export default function Header({ user }: HeaderProps) {
             <DropdownMenuContent align="end" className="w-56">
               <DropdownMenuLabel>
                 <div className="flex flex-col space-y-1">
-                  <p>{user?.name}</p>
-                  <p className="text-xs text-muted-foreground">{user?.email}</p>
+                  <div className="flex items-center gap-2">
+                    <p>{user?.name}</p>
+                    {isAdmin && (
+                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                        <Shield className="w-3 h-3 mr-1" />
+                        Admin
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground">{user?.email_id}</p>
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />

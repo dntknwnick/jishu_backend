@@ -37,56 +37,82 @@ const initialState: PurchaseState = {
   error: null,
 };
 
-// For now, we'll use localStorage for purchases until backend payment integration
+// Process purchase through backend API
 export const processPurchase = createAsyncThunk(
   'purchase/processPurchase',
   async (
     purchaseData: {
-      userId: number;
       courseId: string;
-      courseName: string;
-      items: any[];
-      amount: number;
+      subjectId?: string;
       paymentMethod: string;
-      paymentDetails: any;
     },
     { rejectWithValue }
   ) => {
     try {
-      // Simulate payment processing
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      const purchase: Purchase = {
-        id: Date.now(),
-        userId: purchaseData.userId,
-        courseId: purchaseData.courseId,
-        courseName: purchaseData.courseName,
-        items: purchaseData.items,
-        amount: purchaseData.amount,
-        date: new Date().toISOString(),
-        status: 'completed',
-      };
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
 
-      // Store in localStorage for now
-      const purchases = JSON.parse(localStorage.getItem('jishu_purchases') || '[]');
-      purchases.push(purchase);
-      localStorage.setItem('jishu_purchases', JSON.stringify(purchases));
+      const response = await fetch('http://localhost:5000/api/purchases', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          course_id: parseInt(purchaseData.courseId),
+          subject_id: purchaseData.subjectId ? parseInt(purchaseData.subjectId) : null,
+          payment_method: purchaseData.paymentMethod
+        })
+      });
 
-      return purchase;
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Purchase failed');
+      }
+
+      const data = await response.json();
+      if (!data.success) {
+        throw new Error(data.message || 'Purchase failed');
+      }
+
+      return data.data.purchase;
     } catch (error) {
-      return rejectWithValue('Payment processing failed');
+      return rejectWithValue(error instanceof Error ? error.message : 'Payment processing failed');
     }
   }
 );
 
 export const loadPurchases = createAsyncThunk(
   'purchase/loadPurchases',
-  async (userId: number, { rejectWithValue }) => {
+  async (_, { rejectWithValue }) => {
     try {
-      const purchases = JSON.parse(localStorage.getItem('jishu_purchases') || '[]');
-      return purchases.filter((p: Purchase) => p.userId === userId);
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
+      const response = await fetch('http://localhost:5000/api/purchases', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to load purchases');
+      }
+
+      const data = await response.json();
+      if (!data.success) {
+        throw new Error(data.message || 'Failed to load purchases');
+      }
+
+      return data.data.purchases;
     } catch (error) {
-      return rejectWithValue('Failed to load purchases');
+      return rejectWithValue(error instanceof Error ? error.message : 'Failed to load purchases');
     }
   }
 );

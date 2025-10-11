@@ -2,11 +2,12 @@ import { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from './components/ui/sonner';
 import { useAppDispatch, useAppSelector } from './store';
-import { initializeAuth, clearCredentials } from './store/slices/authSlice';
+import { initializeAuth, clearCredentials, updateProfile } from './store/slices/authSlice';
 
 // Import all screen components
 import LandingPage from './components/LandingPage';
 import AuthScreen from './components/AuthScreen';
+import GoogleOAuthCallback from './components/GoogleOAuthCallback';
 import CourseSelection from './components/CourseSelection';
 import SubjectSelection from './components/SubjectSelection';
 import MockTestPurchase from './components/MockTestPurchase';
@@ -36,9 +37,24 @@ export default function App() {
     dispatch(initializeAuth());
   }, [dispatch]);
 
+  // Initialize theme from user preferences
+  useEffect(() => {
+    if (user?.color_theme) {
+      document.documentElement.classList.toggle('dark', user.color_theme === 'dark');
+    }
+  }, [user?.color_theme]);
+
   const handleLogin = (userData: any) => {
     // This is now handled by Redux actions in AuthScreen
     // Keep for compatibility with existing components
+  };
+
+  const handleUpdateUser = async (userData: any) => {
+    try {
+      await dispatch(updateProfile(userData)).unwrap();
+    } catch (error) {
+      console.error('Failed to update user:', error);
+    }
   };
 
   const handleLogout = () => {
@@ -50,13 +66,17 @@ export default function App() {
       <Toaster />
       <Routes>
         <Route path="/" element={<LandingPage />} />
-        <Route 
-          path="/auth" 
+        <Route
+          path="/auth"
           element={
-            isAuthenticated ? 
-            <Navigate to={isAdmin ? "/admin" : "/courses"} /> : 
+            isAuthenticated ?
+            <Navigate to={isAdmin ? "/admin" : "/courses"} /> :
             <AuthScreen onLogin={handleLogin} />
-          } 
+          }
+        />
+        <Route
+          path="/auth/google/callback"
+          element={<GoogleOAuthCallback onLogin={handleLogin} />}
         />
         
         {/* Protected User Routes */}
@@ -94,7 +114,7 @@ export default function App() {
         />
         <Route
           path="/profile"
-          element={isAuthenticated ? <UserProfile user={user} onUpdateUser={setUser} /> : <Navigate to="/auth" />}
+          element={isAuthenticated ? <UserProfile user={user} onUpdateUser={handleUpdateUser} /> : <Navigate to="/auth" />}
         />
         <Route
           path="/account"

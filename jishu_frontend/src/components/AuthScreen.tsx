@@ -25,27 +25,39 @@ export default function AuthScreen({ onLogin }: AuthScreenProps) {
   const [otp, setOtp] = useState('');
   const [name, setName] = useState('');
   const [mobile, setMobile] = useState('');
-  const [password, setPassword] = useState('');
+  const [isLoginMode, setIsLoginMode] = useState(true);
 
   // Clear errors when component mounts
   useEffect(() => {
     dispatch(clearError());
   }, [dispatch]);
 
-  const handleGoogleSignIn = () => {
-    // TODO: Implement Google OAuth integration with backend
-    toast.info('Google OAuth integration coming soon!');
+  const handleGoogleSignIn = async () => {
+    try {
+      // Get Google OAuth URL from backend
+      const response = await fetch('http://localhost:5000/auth/google');
+      const data = await response.json();
+
+      if (data.success && data.data.authorization_url) {
+        // Redirect to Google OAuth
+        window.location.href = data.data.authorization_url;
+      } else {
+        toast.error('Failed to initialize Google OAuth');
+      }
+    } catch (error) {
+      toast.error('Google OAuth is not available');
+    }
   };
 
-  const handleEmailLogin = async (e: React.FormEvent) => {
+  const handleOtpLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password) {
-      toast.error('Please fill in all fields');
+    if (!email || !otp) {
+      toast.error('Please enter email and OTP');
       return;
     }
 
     try {
-      const result = await dispatch(login({ email, password })).unwrap();
+      const result = await dispatch(login({ email, otp })).unwrap();
       onLogin(result.user);
       toast.success('Successfully logged in!');
       navigate(result.user.is_admin ? '/admin' : '/courses');
@@ -70,19 +82,15 @@ export default function AuthScreen({ onLogin }: AuthScreenProps) {
     }
   };
 
-  const handleVerifyOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!otp) {
-      toast.error('Please enter the OTP');
+  const handleResendOtp = async () => {
+    if (!email) {
+      toast.error('Please enter your email first');
       return;
     }
 
     try {
-      // For OTP login, we use the login endpoint with OTP
-      const result = await dispatch(login({ email, password: otp })).unwrap();
-      onLogin(result.user);
-      toast.success('OTP verified successfully!');
-      navigate(result.user.is_admin ? '/admin' : '/courses');
+      await dispatch(requestOtp(email)).unwrap();
+      toast.success('OTP resent to your email!');
     } catch (error) {
       toast.error(error as string);
     }
@@ -90,7 +98,7 @@ export default function AuthScreen({ onLogin }: AuthScreenProps) {
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || !email || !password || !mobile || !otp) {
+    if (!name || !email || !mobile || !otp) {
       toast.error('Please fill in all fields');
       return;
     }
@@ -99,7 +107,7 @@ export default function AuthScreen({ onLogin }: AuthScreenProps) {
       const result = await dispatch(register({
         email,
         otp,
-        password,
+        password: '', // No password required for OTP-based registration
         name,
         mobile_no: mobile
       })).unwrap();
@@ -176,67 +184,20 @@ export default function AuthScreen({ onLogin }: AuthScreenProps) {
                 </div>
               </div>
 
-              {/* Email/Password Login */}
-              <form onSubmit={handleEmailLogin} className="space-y-4">
-                {error && (
-                  <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-md">
-                    {error}
-                  </div>
-                )}
-                <div className="space-y-2">
-                  <Label htmlFor="login-email">Email</Label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                    <Input
-                      id="login-email"
-                      type="email"
-                      placeholder="your.email@example.com"
-                      className="pl-10"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                    />
-                  </div>
-                  <p className="text-xs text-gray-500">
-                    Use admin@jishu.com for admin access
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="login-password">Password</Label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                    <Input
-                      id="login-password"
-                      type="password"
-                      placeholder="Enter your password"
-                      className="pl-10"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                    />
-                  </div>
-                </div>
-                <Button type="submit" className="w-full" disabled={isLoading}>
-                  {isLoading ? 'Signing In...' : 'Sign In'}
-                </Button>
-              </form>
-
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <span className="w-full border-t" />
-                </div>
-                <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-white px-2 text-muted-foreground">Or use OTP</span>
-                </div>
-              </div>
-
-              {/* OTP Login */}
+              {/* Email + OTP Login */}
               {!isOtpSent ? (
                 <form onSubmit={handleSendOtp} className="space-y-4">
+                  {error && (
+                    <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-md">
+                      {error}
+                    </div>
+                  )}
                   <div className="space-y-2">
-                    <Label htmlFor="otp-email">Email for OTP</Label>
+                    <Label htmlFor="login-email">Email</Label>
                     <div className="relative">
                       <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                       <Input
-                        id="otp-email"
+                        id="login-email"
                         type="email"
                         placeholder="your.email@example.com"
                         className="pl-10"
@@ -244,37 +205,67 @@ export default function AuthScreen({ onLogin }: AuthScreenProps) {
                         onChange={(e) => setEmail(e.target.value)}
                       />
                     </div>
+                    <p className="text-xs text-gray-500">
+                      Use admin@jishu.com for admin access
+                    </p>
                   </div>
-                  <Button type="submit" variant="outline" className="w-full">
-                    Send OTP
+                  <Button type="submit" className="w-full" disabled={isLoading}>
+                    {isLoading ? 'Sending OTP...' : 'Send OTP'}
                   </Button>
                 </form>
               ) : (
-                <form onSubmit={handleVerifyOtp} className="space-y-4">
+                <form onSubmit={handleOtpLogin} className="space-y-4">
+                  {error && (
+                    <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-md">
+                      {error}
+                    </div>
+                  )}
                   <div className="space-y-2">
-                    <Label htmlFor="otp">Enter OTP</Label>
-                    <Input
-                      id="otp"
-                      type="text"
-                      placeholder="Enter 6-digit OTP"
-                      maxLength={6}
-                      value={otp}
-                      onChange={(e) => setOtp(e.target.value)}
-                    />
+                    <Label htmlFor="login-otp">Enter OTP</Label>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                      <Input
+                        id="login-otp"
+                        type="text"
+                        placeholder="Enter 6-digit OTP"
+                        className="pl-10"
+                        value={otp}
+                        onChange={(e) => setOtp(e.target.value)}
+                        maxLength={6}
+                      />
+                    </div>
+                    <p className="text-sm text-gray-600">
+                      OTP sent to {email}
+                    </p>
                   </div>
-                  <Button type="submit" variant="outline" className="w-full">
-                    Verify OTP
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button type="submit" className="flex-1" disabled={isLoading}>
+                      {isLoading ? 'Verifying...' : 'Verify OTP'}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handleResendOtp}
+                      disabled={isLoading}
+                    >
+                      Resend
+                    </Button>
+                  </div>
                   <Button
                     type="button"
                     variant="ghost"
                     className="w-full"
-                    onClick={() => setIsOtpSent(false)}
+                    onClick={() => {
+                      setIsOtpSent(false);
+                      setOtp('');
+                    }}
                   >
                     Change Email
                   </Button>
                 </form>
               )}
+
+
             </TabsContent>
 
             <TabsContent value="register" className="space-y-4">
@@ -325,38 +316,44 @@ export default function AuthScreen({ onLogin }: AuthScreenProps) {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="register-password">Password</Label>
+                    <Label htmlFor="register-otp">Enter OTP</Label>
                     <div className="relative">
                       <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                       <Input
-                        id="register-password"
-                        type="password"
-                        placeholder="Create a strong password"
+                        id="register-otp"
+                        type="text"
+                        placeholder="Enter 6-digit OTP"
                         className="pl-10"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
+                        maxLength={6}
+                        value={otp}
+                        onChange={(e) => setOtp(e.target.value)}
                       />
                     </div>
+                    <p className="text-sm text-gray-600">
+                      OTP sent to {email}
+                    </p>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="register-otp">OTP</Label>
-                    <Input
-                      id="register-otp"
-                      type="text"
-                      placeholder="Enter 6-digit OTP"
-                      maxLength={6}
-                      value={otp}
-                      onChange={(e) => setOtp(e.target.value)}
-                    />
+                  <div className="flex gap-2">
+                    <Button type="submit" className="flex-1" disabled={isLoading}>
+                      {isLoading ? 'Creating Account...' : 'Create Account'}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handleResendOtp}
+                      disabled={isLoading}
+                    >
+                      Resend
+                    </Button>
                   </div>
-                  <Button type="submit" className="w-full" disabled={isLoading}>
-                    {isLoading ? 'Creating Account...' : 'Create Account'}
-                  </Button>
                   <Button
                     type="button"
                     variant="ghost"
                     className="w-full"
-                    onClick={() => setIsOtpSent(false)}
+                    onClick={() => {
+                      setIsOtpSent(false);
+                      setOtp('');
+                    }}
                   >
                     Change Email
                   </Button>
