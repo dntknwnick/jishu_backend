@@ -26,9 +26,10 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from './ui/alert-dialog';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import { useAppDispatch, useAppSelector } from '../store';
 import { fetchQuestions, startTest, endTest, answerQuestion, toggleFlag, updateTimer, submitTest } from '../store/slices/testsSlice';
+import { userTestsApi } from '../services/api';
 
 interface MCQTestScreenProps {
   user: any;
@@ -41,6 +42,10 @@ export default function MCQTestScreen({ user }: MCQTestScreenProps) {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
 
+  // Get purchase_id from query parameters if present
+  const urlParams = new URLSearchParams(window.location.search);
+  const purchaseId = urlParams.get('purchase_id');
+
   const { questions, currentTest, isLoading, error } = useAppSelector((state) => state.tests);
 
   const [currentQuestion, setCurrentQuestion] = useState(0);
@@ -50,21 +55,52 @@ export default function MCQTestScreen({ user }: MCQTestScreenProps) {
 
   useEffect(() => {
     if (testId) {
-      // Fetch questions for the specific test/subject
-      dispatch(fetchQuestions({ subjectId: parseInt(testId), count: 30 }));
+      // Start test attempt and generate questions for the specific subject
+      startTestAttempt();
     }
-  }, [testId, dispatch]);
+  }, [testId]);
 
-  useEffect(() => {
-    if (questions.length > 0 && !currentTest) {
-      // Start the test when questions are loaded
+  const startTestAttempt = async () => {
+    try {
+      const subjectId = parseInt(testId!);
+      const purchaseIdNum = purchaseId ? parseInt(purchaseId) : undefined;
+
+      // Check if we already have an active test for this subject
+      if (currentTest.isActive && currentTest.questions.length > 0) {
+        console.log('Test already active with questions, skipping generation');
+        return;
+      }
+
+      // First, start the test attempt
+      const startResponse = await userTestsApi.startTest(subjectId, purchaseIdNum);
+      const testAttemptId = startResponse.data.test_attempt_id;
+
+      // Then generate questions for this test attempt
+      const questionsResponse = await userTestsApi.generateTestQuestions(testAttemptId);
+      const generatedQuestions = questionsResponse.data.questions;
+
+      // Convert to the format expected by the test slice
+      const formattedQuestions = generatedQuestions.map((q: any) => ({
+        id: q.id,
+        question: q.question,
+        options: [q.options.A, q.options.B, q.options.C, q.options.D],
+        correct_answer: q.correct_answer,
+        explanation: q.explanation
+      }));
+
+      // Start the test with generated questions
       dispatch(startTest({
-        testId: testId || '',
-        questions,
+        testId: testAttemptId.toString(),
+        questions: formattedQuestions,
         timeLimit: 3600 // 60 minutes
       }));
+
+    } catch (error) {
+      console.error('Failed to start test:', error);
+      toast.error('Failed to start test. Please try again.');
+      navigate('/results');
     }
-  }, [questions, currentTest, testId, dispatch]);
+  };
 
   useEffect(() => {
     if (autoSubmit && currentTest) {

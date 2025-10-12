@@ -3,6 +3,7 @@ import { subjectsApi, Subject, ApiError } from '../../services/api';
 
 interface SubjectsState {
   subjects: Subject[];
+  bundles: Subject[];
   selectedSubjects: number[];
   isLoading: boolean;
   error: string | null;
@@ -10,6 +11,7 @@ interface SubjectsState {
 
 const initialState: SubjectsState = {
   subjects: [],
+  bundles: [],
   selectedSubjects: [],
   isLoading: false,
   error: null,
@@ -20,13 +22,28 @@ export const fetchSubjectsByCourse = createAsyncThunk(
   'subjects/fetchSubjectsByCourse',
   async (courseId: number, { rejectWithValue }) => {
     try {
-      const response = await subjectsApi.getByCourse(courseId);
+      const response = await subjectsApi.getSubjects(courseId);
       return response.data?.subjects || [];
     } catch (error) {
       if (error instanceof ApiError) {
         return rejectWithValue(error.message);
       }
       return rejectWithValue('Failed to fetch subjects');
+    }
+  }
+);
+
+export const fetchBundlesByCourse = createAsyncThunk(
+  'subjects/fetchBundlesByCourse',
+  async (courseId: number, { rejectWithValue }) => {
+    try {
+      const response = await subjectsApi.getBundles(courseId);
+      return response.data?.bundles || [];
+    } catch (error) {
+      if (error instanceof ApiError) {
+        return rejectWithValue(error.message);
+      }
+      return rejectWithValue('Failed to fetch bundles');
     }
   }
 );
@@ -65,6 +82,18 @@ const subjectsSlice = createSlice({
         state.subjects = action.payload;
       })
       .addCase(fetchSubjectsByCourse.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload as string;
+      })
+      .addCase(fetchBundlesByCourse.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(fetchBundlesByCourse.fulfilled, (state, action) => {
+        state.isLoading = false;
+        state.bundles = action.payload;
+      })
+      .addCase(fetchBundlesByCourse.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload as string;
       });

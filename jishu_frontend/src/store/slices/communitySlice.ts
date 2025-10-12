@@ -13,13 +13,32 @@ const initialState: CommunityState = {
   error: null,
 };
 
+// Helper function to transform backend post data to frontend format
+const transformPost = (post: any): BlogPost => {
+  const timeAgo = new Date(post.created_at).toLocaleDateString();
+
+  return {
+    ...post,
+    author: {
+      name: post.user?.name || 'Anonymous',
+      avatar: '', // No avatar in backend yet
+      role: 'Student' // Default role
+    },
+    timeAgo,
+    likes: post.likes_count,
+    comments: post.comments_count,
+    views: Math.floor(Math.random() * 1000) + 100 // Mock views for now
+  };
+};
+
 // Async thunks
 export const fetchPosts = createAsyncThunk(
   'community/fetchPosts',
   async (_, { rejectWithValue }) => {
     try {
       const response = await communityApi.getPosts();
-      return response.data?.posts || [];
+      const posts = response.data?.posts || [];
+      return posts.map(transformPost);
     } catch (error) {
       if (error instanceof ApiError) {
         return rejectWithValue(error.message);
@@ -37,7 +56,8 @@ export const createPost = createAsyncThunk(
   ) => {
     try {
       const response = await communityApi.createPost(data);
-      return response.data?.post;
+      const post = response.data?.post;
+      return post ? transformPost(post) : null;
     } catch (error) {
       if (error instanceof ApiError) {
         return rejectWithValue(error.message);

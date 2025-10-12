@@ -61,6 +61,13 @@ class ExamCategorySubject(db.Model):
     # AI Token limits for subject-specific purchases
     max_tokens = db.Column(db.Integer, nullable=True, default=100)  # Default tokens for subject purchase
 
+    # Mock test limits for subject-specific purchases
+    total_mock = db.Column(db.Integer, nullable=True, default=50)  # Total mock tests available for this subject
+
+    # Soft delete and bundle fields
+    is_deleted = db.Column(db.Boolean, default=False)  # Soft delete flag
+    is_bundle = db.Column(db.Boolean, default=False)   # Flag to identify bundle subjects
+
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -76,6 +83,9 @@ class ExamCategorySubject(db.Model):
             'amount': float(self.amount) if self.amount else 0.00,
             'offer_amount': float(self.offer_amount) if self.offer_amount else 0.00,
             'max_tokens': self.max_tokens or 100,
+            'total_mock': self.total_mock or 50,
+            'is_deleted': self.is_deleted,
+            'is_bundle': self.is_bundle,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }

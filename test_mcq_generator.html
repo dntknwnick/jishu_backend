@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MCQ Generator Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input, textarea, select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        textarea {
+            height: 120px;
+            resize: vertical;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 4px;
+        }
+        .success {
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        .error {
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        .question {
+            background: #f8f9fa;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 4px;
+            border-left: 4px solid #007bff;
+        }
+        .option {
+            margin: 5px 0;
+            padding: 5px;
+        }
+        .correct {
+            background-color: #d4edda;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>MCQ Generator Test</h1>
+        
+        <div class="form-group">
+            <button onclick="checkStatus()">Check AI Status</button>
+        </div>
+
+        <div class="form-group">
+            <label for="content">Content (for text generation):</label>
+            <textarea id="content" placeholder="Enter educational content here (minimum 100 characters)...">Photosynthesis is the process by which plants convert light energy, usually from the sun, into chemical energy that can be later released to fuel the organism's activities. This process occurs in the chloroplasts of plant cells and involves two main stages: the light-dependent reactions and the Calvin cycle. During the light-dependent reactions, chlorophyll absorbs light energy and uses it to split water molecules, releasing oxygen as a byproduct and generating ATP and NADPH. The Calvin cycle then uses these energy carriers to fix carbon dioxide from the atmosphere into glucose.</textarea>
+        </div>
+
+        <div class="form-group">
+            <label for="subject">Subject:</label>
+            <input type="text" id="subject" placeholder="e.g., Biology" value="Biology">
+        </div>
+
+        <div class="form-group">
+            <label for="numQuestions">Number of Questions:</label>
+            <input type="number" id="numQuestions" min="1" max="20" value="3">
+        </div>
+
+        <div class="form-group">
+            <label for="difficulty">Difficulty:</label>
+            <select id="difficulty">
+                <option value="easy">Easy</option>
+                <option value="medium" selected>Medium</option>
+                <option value="hard">Hard</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <button onclick="generateFromText()" id="textBtn">Generate from Text</button>
+            <button onclick="generateFromPDFs()" id="pdfBtn">Generate from PDFs</button>
+        </div>
+
+        <div id="result"></div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:5000';
+        
+        // Mock admin token - in real app this would come from authentication
+        const ADMIN_TOKEN = 'mock_admin_token';
+
+        async function apiRequest(endpoint, options = {}) {
+            try {
+                const response = await fetch(`${API_BASE}${endpoint}`, {
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${ADMIN_TOKEN}`,
+                        ...options.headers
+                    },
+                    ...options
+                });
+                
+                const data = await response.json();
+                return { success: response.ok, data, status: response.status };
+            } catch (error) {
+                return { success: false, error: error.message };
+            }
+        }
+
+        async function checkStatus() {
+            showResult('Checking AI status...', 'info');
+            
+            const result = await apiRequest('/api/ai/rag/status');
+            
+            if (result.success) {
+                const status = result.data;
+                showResult(`
+                    <h3>AI Status</h3>
+                    <p><strong>Status:</strong> ${status.status}</p>
+                    <p><strong>PDFs Loaded:</strong> ${status.pdfs_loaded}</p>
+                    <p><strong>Ollama Available:</strong> ${status.dependencies.ollama ? 'Yes' : 'No'}</p>
+                    <p><strong>PDF Processing Available:</strong> ${status.dependencies.PyPDF2 ? 'Yes' : 'No'}</p>
+                `, 'success');
+            } else {
+                showResult(`Error checking status: ${result.error || 'Unknown error'}`, 'error');
+            }
+        }
+
+        async function generateFromText() {
+            const content = document.getElementById('content').value;
+            const subject = document.getElementById('subject').value;
+            const numQuestions = parseInt(document.getElementById('numQuestions').value);
+            const difficulty = document.getElementById('difficulty').value;
+
+            if (!content || content.length < 100) {
+                showResult('Content must be at least 100 characters long', 'error');
+                return;
+            }
+
+            showResult('Generating questions from text...', 'info');
+            document.getElementById('textBtn').disabled = true;
+
+            const result = await apiRequest('/api/ai/generate-questions-from-text', {
+                method: 'POST',
+                body: JSON.stringify({
+                    content,
+                    subject_name: subject,
+                    num_questions: numQuestions,
+                    difficulty,
+                    save_to_database: false
+                })
+            });
+
+            document.getElementById('textBtn').disabled = false;
+
+            if (result.success && result.data.success) {
+                displayQuestions(result.data.questions);
+            } else {
+                showResult(`Error: ${result.data?.error || result.error || 'Unknown error'}`, 'error');
+            }
+        }
+
+        async function generateFromPDFs() {
+            const subject = document.getElementById('subject').value;
+            const numQuestions = parseInt(document.getElementById('numQuestions').value);
+            const difficulty = document.getElementById('difficulty').value;
+
+            showResult('Generating questions from PDFs...', 'info');
+            document.getElementById('pdfBtn').disabled = true;
+
+            const result = await apiRequest('/api/ai/generate-questions-from-pdfs', {
+                method: 'POST',
+                body: JSON.stringify({
+                    subject_name: subject,
+                    num_questions: numQuestions,
+                    difficulty,
+                    save_to_database: false
+                })
+            });
+
+            document.getElementById('pdfBtn').disabled = false;
+
+            if (result.success && result.data.success) {
+                displayQuestions(result.data.questions);
+            } else {
+                showResult(`Error: ${result.data?.error || result.error || 'Unknown error'}`, 'error');
+            }
+        }
+
+        function displayQuestions(questions) {
+            let html = `<h3>Generated ${questions.length} Questions</h3>`;
+            
+            questions.forEach((q, index) => {
+                html += `
+                    <div class="question">
+                        <h4>Question ${index + 1}</h4>
+                        <p><strong>${q.question}</strong></p>
+                        <div class="options">
+                `;
+                
+                q.options.forEach((option, optIndex) => {
+                    const isCorrect = option.includes(q.correct_answer) || option.startsWith(q.correct_answer);
+                    html += `<div class="option ${isCorrect ? 'correct' : ''}">${String.fromCharCode(65 + optIndex)}. ${option}</div>`;
+                });
+                
+                if (q.explanation) {
+                    html += `<p><strong>Explanation:</strong> ${q.explanation}</p>`;
+                }
+                
+                html += `</div></div>`;
+            });
+            
+            showResult(html, 'success');
+        }
+
+        function showResult(message, type) {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = message;
+            resultDiv.className = `result ${type}`;
+        }
+    </script>
+</body>
+</html>

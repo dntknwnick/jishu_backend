@@ -22,14 +22,11 @@ class Config:
     GOOGLE_CLIENT_ID = os.getenv('GOOGLE_CLIENT_ID')
     GOOGLE_CLIENT_SECRET = os.getenv('GOOGLE_CLIENT_SECRET')
     GOOGLE_DISCOVERY_URL = "https://accounts.google.com/.well-known/openid_configuration"
-    
+    # Frontend callback URL for OAuth flow
+    GOOGLE_REDIRECT_URI = os.getenv('GOOGLE_REDIRECT_URI', 'http://localhost:3000/auth/google/callback')
+
     # Flask Configuration
     SECRET_KEY = os.getenv('SECRET_KEY', 'your-secret-key-change-in-production')
-
-    # Google OAuth Configuration
-    GOOGLE_CLIENT_ID = os.getenv('GOOGLE_CLIENT_ID')
-    GOOGLE_CLIENT_SECRET = os.getenv('GOOGLE_CLIENT_SECRET')
-    GOOGLE_REDIRECT_URI = os.getenv('GOOGLE_REDIRECT_URI', 'http://localhost:5000/auth/google/callback')
 
     # Application Configuration
     APP_NAME = 'Jishu Backend'
@@ -47,11 +44,21 @@ class Config:
     AI_SIMILARITY_THRESHOLD = float(os.getenv('AI_SIMILARITY_THRESHOLD', '0.1'))
     AI_RAG_TOP_K = int(os.getenv('AI_RAG_TOP_K', '3'))
 
+    # Development Configuration
+    BYPASS_PURCHASE_VALIDATION = os.getenv('BYPASS_PURCHASE_VALIDATION', 'True').lower() == 'true'
+    LOCAL_DEV_MODE = os.getenv('LOCAL_DEV_MODE', 'True').lower() == 'true'
+
 class DevelopmentConfig(Config):
     DEBUG = True
+    # Override for development - always bypass purchase validation
+    BYPASS_PURCHASE_VALIDATION = True
+    LOCAL_DEV_MODE = True
 
 class ProductionConfig(Config):
     DEBUG = False
+    # Production settings - require actual purchase validation
+    BYPASS_PURCHASE_VALIDATION = False
+    LOCAL_DEV_MODE = False
 
 class TestingConfig(Config):
     TESTING = True

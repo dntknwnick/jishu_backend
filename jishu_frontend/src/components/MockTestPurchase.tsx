@@ -86,15 +86,15 @@ export default function MockTestPurchase({ user }: MockTestPurchaseProps) {
     }
 
     setIsProcessing(true);
-    
-    // Process payment through Redux
+
+    // Auto-purchase without payment processing
     try {
-      // For demo purposes, we'll purchase each item separately
+      // Process each item separately (no payment required)
       for (const item of currentCart.items) {
         const purchaseData = {
           courseId: currentCart.courseId || '',
           subjectId: item.type === 'subject' ? item.id : undefined,
-          paymentMethod
+          paymentMethod: 'auto' // No actual payment method needed
         };
 
         await dispatch(processPurchase(purchaseData)).unwrap();
@@ -103,11 +103,18 @@ export default function MockTestPurchase({ user }: MockTestPurchaseProps) {
       dispatch(clearCart());
 
       setIsProcessing(false);
-      toast.success('Payment successful! Access granted to selected tests.');
-      navigate('/dashboard');
+      toast.success('Access granted! You can now take tests.');
+
+      // Redirect to results page with purchase success flag
+      navigate('/results', {
+        state: {
+          purchaseSuccess: true,
+          message: 'Course access granted! Your tests are now available.'
+        }
+      });
     } catch (error) {
       setIsProcessing(false);
-      const errorMessage = error instanceof Error ? error.message : 'Payment failed. Please try again.';
+      const errorMessage = error instanceof Error ? error.message : 'Failed to grant access. Please try again.';
       toast.error(errorMessage);
     }
   };
@@ -153,7 +160,7 @@ export default function MockTestPurchase({ user }: MockTestPurchaseProps) {
                       <span className="flex items-center gap-2">
                         <span>{item.icon}</span>
                         <span>{item.name}</span>
-                        <span className="text-gray-500">({item.tests || 100} tests)</span>
+                        <span className="text-gray-500">({item.tests || 50} tests)</span>
                       </span>
                       <span>₹{item.price}</span>
                     </div>

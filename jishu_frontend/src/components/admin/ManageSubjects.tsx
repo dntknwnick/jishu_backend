@@ -61,7 +61,9 @@ export default function ManageSubjects({ courseId, courseName }: ManageSubjectsP
     subject_name: '',
     amount: '',
     offer_amount: '',
-    max_tokens: ''
+    max_tokens: '',
+    total_mock: '',
+    is_bundle: false
   });
 
   useEffect(() => {
@@ -75,7 +77,9 @@ export default function ManageSubjects({ courseId, courseName }: ManageSubjectsP
       subject_name: '',
       amount: '',
       offer_amount: '',
-      max_tokens: ''
+      max_tokens: '',
+      total_mock: '',
+      is_bundle: false
     });
   };
 
@@ -91,7 +95,9 @@ export default function ManageSubjects({ courseId, courseName }: ManageSubjectsP
         subject_name: formData.subject_name.trim(),
         amount: parseFloat(formData.amount) || 0,
         offer_amount: parseFloat(formData.offer_amount) || 0,
-        max_tokens: parseInt(formData.max_tokens) || 100
+        max_tokens: parseInt(formData.max_tokens) || 100,
+        total_mock: parseInt(formData.total_mock) || 50,
+        is_bundle: formData.is_bundle
       };
 
       await dispatch(createSubject(subjectData)).unwrap();
@@ -109,7 +115,9 @@ export default function ManageSubjects({ courseId, courseName }: ManageSubjectsP
       subject_name: subject.subject_name || '',
       amount: subject.amount?.toString() || '0',
       offer_amount: subject.offer_amount?.toString() || '0',
-      max_tokens: subject.max_tokens?.toString() || '100'
+      max_tokens: subject.max_tokens?.toString() || '100',
+      total_mock: subject.total_mock?.toString() || '50',
+      is_bundle: subject.is_bundle || false
     });
   };
 
@@ -124,7 +132,9 @@ export default function ManageSubjects({ courseId, courseName }: ManageSubjectsP
         subject_name: formData.subject_name.trim(),
         amount: parseFloat(formData.amount) || 0,
         offer_amount: parseFloat(formData.offer_amount) || 0,
-        max_tokens: parseInt(formData.max_tokens) || 100
+        max_tokens: parseInt(formData.max_tokens) || 100,
+        total_mock: parseInt(formData.total_mock) || 50,
+        is_bundle: formData.is_bundle
       };
 
       await dispatch(updateSubject({ id: editingSubject.id, data: subjectData })).unwrap();
@@ -186,36 +196,60 @@ export default function ManageSubjects({ courseId, courseName }: ManageSubjectsP
                     onChange={(e) => setFormData({ ...formData, subject_name: e.target.value })}
                   />
                 </div>
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="amount">Regular Price (₹)</Label>
-                    <Input
-                      id="amount"
-                      type="number"
-                      placeholder="299"
-                      value={formData.amount}
-                      onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-                    />
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="amount">Regular Price (₹)</Label>
+                      <Input
+                        id="amount"
+                        type="number"
+                        placeholder="299"
+                        value={formData.amount}
+                        onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="offer_amount">Offer Price (₹)</Label>
+                      <Input
+                        id="offer_amount"
+                        type="number"
+                        placeholder="199"
+                        value={formData.offer_amount}
+                        onChange={(e) => setFormData({ ...formData, offer_amount: e.target.value })}
+                      />
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="offer_amount">Offer Price (₹)</Label>
-                    <Input
-                      id="offer_amount"
-                      type="number"
-                      placeholder="199"
-                      value={formData.offer_amount}
-                      onChange={(e) => setFormData({ ...formData, offer_amount: e.target.value })}
-                    />
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="max_tokens">Max AI Tokens</Label>
+                      <Input
+                        id="max_tokens"
+                        type="number"
+                        placeholder="100"
+                        value={formData.max_tokens}
+                        onChange={(e) => setFormData({ ...formData, max_tokens: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="total_mock">Total Mock Tests</Label>
+                      <Input
+                        id="total_mock"
+                        type="number"
+                        placeholder="50"
+                        value={formData.total_mock}
+                        onChange={(e) => setFormData({ ...formData, total_mock: e.target.value })}
+                      />
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="max_tokens">Max AI Tokens</Label>
-                    <Input
-                      id="max_tokens"
-                      type="number"
-                      placeholder="100"
-                      value={formData.max_tokens}
-                      onChange={(e) => setFormData({ ...formData, max_tokens: e.target.value })}
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      id="is_bundle"
+                      checked={formData.is_bundle}
+                      onChange={(e) => setFormData({ ...formData, is_bundle: e.target.checked })}
+                      className="rounded border-gray-300"
                     />
+                    <Label htmlFor="is_bundle">This is a bundle (contains all subjects)</Label>
                   </div>
                 </div>
               </div>
@@ -249,9 +283,11 @@ export default function ManageSubjects({ courseId, courseName }: ManageSubjectsP
             <TableHeader>
               <TableRow>
                 <TableHead>Subject Name</TableHead>
+                <TableHead>Type</TableHead>
                 <TableHead>Regular Price</TableHead>
                 <TableHead>Offer Price</TableHead>
                 <TableHead>AI Tokens</TableHead>
+                <TableHead>Mock Tests</TableHead>
                 <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -259,6 +295,13 @@ export default function ManageSubjects({ courseId, courseName }: ManageSubjectsP
               {subjects.map((subject) => (
                 <TableRow key={subject.id}>
                   <TableCell className="font-medium">{subject.subject_name}</TableCell>
+                  <TableCell>
+                    {subject.is_bundle ? (
+                      <Badge className="bg-purple-600">Bundle</Badge>
+                    ) : (
+                      <Badge variant="secondary">Subject</Badge>
+                    )}
+                  </TableCell>
                   <TableCell>₹{subject.amount || 0}</TableCell>
                   <TableCell>
                     {subject.offer_amount ? (
@@ -273,6 +316,9 @@ export default function ManageSubjects({ courseId, courseName }: ManageSubjectsP
                     ) : (
                       <span>{subject.max_tokens || 100}</span>
                     )}
+                  </TableCell>
+                  <TableCell>
+                    <span>{subject.total_mock || 50} tests</span>
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
@@ -302,7 +348,7 @@ export default function ManageSubjects({ courseId, courseName }: ManageSubjectsP
                                 onChange={(e) => setFormData({ ...formData, subject_name: e.target.value })}
                               />
                             </div>
-                            <div className="grid grid-cols-3 gap-4">
+                            <div className="grid grid-cols-2 gap-4">
                               <div className="space-y-2">
                                 <Label htmlFor="edit-amount">Regular Price (₹)</Label>
                                 <Input
@@ -330,6 +376,25 @@ export default function ManageSubjects({ courseId, courseName }: ManageSubjectsP
                                   onChange={(e) => setFormData({ ...formData, max_tokens: e.target.value })}
                                 />
                               </div>
+                              <div className="space-y-2">
+                                <Label htmlFor="edit-total_mock">Total Mock Tests</Label>
+                                <Input
+                                  id="edit-total_mock"
+                                  type="number"
+                                  value={formData.total_mock}
+                                  onChange={(e) => setFormData({ ...formData, total_mock: e.target.value })}
+                                />
+                              </div>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <input
+                                type="checkbox"
+                                id="edit-is_bundle"
+                                checked={formData.is_bundle}
+                                onChange={(e) => setFormData({ ...formData, is_bundle: e.target.checked })}
+                                className="rounded border-gray-300"
+                              />
+                              <Label htmlFor="edit-is_bundle">This is a bundle (contains all subjects)</Label>
                             </div>
                           </div>
                           <DialogFooter>

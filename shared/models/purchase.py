@@ -11,10 +11,13 @@ class ExamCategoryPurchase(db.Model):
     exam_category_id = db.Column(db.Integer, db.ForeignKey('exam_category.id'), nullable=False)
     subject_id = db.Column(db.Integer, db.ForeignKey('exam_category_subjects.id'), nullable=True)
     cost = db.Column(db.Numeric(10, 2), nullable=False)
-    no_of_attempts = db.Column(db.Integer, default=3)
-    attempts_used = db.Column(db.Integer, default=0)
     total_marks = db.Column(db.Integer, nullable=True)
     marks_scored = db.Column(db.Integer, default=0)
+
+    # Mock test tracking
+    total_mock_tests = db.Column(db.Integer, default=0)  # Total mock tests purchased
+    mock_tests_used = db.Column(db.Integer, default=0)   # Mock tests already taken
+
     purchase_date = db.Column(db.DateTime, default=datetime.utcnow)
     last_attempt_date = db.Column(db.DateTime, nullable=True)
     status = db.Column(db.Enum('active', 'completed', 'expired'), default='active')
@@ -32,10 +35,11 @@ class ExamCategoryPurchase(db.Model):
             'exam_category_id': self.exam_category_id,
             'subject_id': self.subject_id,
             'cost': float(self.cost) if self.cost else 0,
-            'no_of_attempts': self.no_of_attempts,
-            'attempts_used': self.attempts_used,
             'total_marks': self.total_marks,
             'marks_scored': self.marks_scored,
+            'total_mock_tests': self.total_mock_tests or 0,
+            'mock_tests_used': self.mock_tests_used or 0,
+            'available_mock_tests': (self.total_mock_tests or 0) - (self.mock_tests_used or 0),
             'purchase_date': self.purchase_date.isoformat() if self.purchase_date else None,
             'last_attempt_date': self.last_attempt_date.isoformat() if self.last_attempt_date else None,
             'status': self.status,

@@ -310,18 +310,46 @@ Generate exactly {num_questions} questions in valid JSON format."""
         return None
 
     def generate_mcq_from_pdfs(self, num_questions: int = 5, subject_name: str = None,
-                              difficulty: str = 'medium', max_content_length: int = 8000) -> Dict:
-        """Generate MCQs from combined PDF content"""
-        # Load or refresh index
-        embeddings, texts, sources = self.load_or_create_index()
+                              difficulty: str = 'medium', max_content_length: int = 8000,
+                              exam_type: str = None, subject_directories: List[str] = None) -> Dict:
+        """Generate MCQs from combined PDF content with exam-specific subject filtering"""
+
+        # Determine which subject directories to use based on exam type
+        if subject_directories is None:
+            subject_directories = self._get_subject_directories_for_exam(exam_type, subject_name)
+
+        # Load content from specific subject directories
+        embeddings, texts, sources = self._load_subject_specific_content(subject_directories)
 
         if not texts:
-            return {
-                'success': False,
-                'error': 'No PDF files found in the pdfs directory',
-                'questions': [],
-                'pdf_folder': self.pdf_folder_path
-            }
+            # Fallback: Generate questions without PDF content using subject knowledge
+            print(f"No PDF files found for subjects: {subject_directories}. Generating questions from AI knowledge.")
+
+            # Create a comprehensive prompt for the subject
+            subject_topic = subject_name or subject_directories[0]
+            subject_prompt = f"""Create comprehensive educational content for {subject_topic} subject covering fundamental concepts, theories, and practical applications.
+
+Include topics such as:
+- Basic principles and definitions
+- Key formulas and equations (if applicable)
+- Important theories and laws
+- Real-world applications
+- Common problem-solving approaches
+
+This content will be used to generate {num_questions} multiple choice questions"""
+
+            if exam_type:
+                subject_prompt += f" suitable for {exam_type} competitive exam preparation"
+
+            subject_prompt += f" at {difficulty} difficulty level."
+
+            # Use the text-based generation as fallback
+            return self.generate_mcq_from_text(
+                content=subject_prompt,
+                num_questions=num_questions,
+                subject_name=subject_name,
+                difficulty=difficulty
+            )
 
         # Combine content from multiple PDFs
         combined_content = ""
@@ -351,6 +379,97 @@ Generate exactly {num_questions} questions in valid JSON format."""
             })
 
         return result
+
+    def _get_subject_directories_for_exam(self, exam_type: str = None, subject_name: str = None) -> List[str]:
+        """Determine which subject directories to use based on exam type and subject"""
+
+        # If specific subject is provided, try to map it
+        if subject_name:
+            subject_lower = subject_name.lower()
+            if 'physics' in subject_lower:
+                return ['physics']
+            elif 'chemistry' in subject_lower:
+                return ['chemistry']
+            elif 'biology' in subject_lower or 'bio' in subject_lower:
+                return ['biology']
+            elif 'math' in subject_lower:
+                return ['mathematics']
+            elif 'computer' in subject_lower or 'cs' in subject_lower:
+                return ['computer_science']
+
+        # Exam-specific subject combinations
+        if exam_type:
+            exam_lower = exam_type.lower()
+            if 'neet' in exam_lower:
+                return ['biology', 'physics', 'chemistry']
+            elif 'jee' in exam_lower or 'cet' in exam_lower or 'engineering' in exam_lower:
+                return ['physics', 'chemistry', 'mathematics']
+            elif 'medical' in exam_lower:
+                return ['biology', 'physics', 'chemistry']
+
+        # Default: use all available subjects
+        return ['physics', 'chemistry', 'biology', 'mathematics']
+
+    def _load_subject_specific_content(self, subject_directories: List[str]) -> tuple:
+        """Load content from specific subject directories"""
+        import os
+        try:
+            from langchain_community.document_loaders import PyPDFLoader
+            from langchain.text_splitter import RecursiveCharacterTextSplitter
+        except ImportError:
+            try:
+                from langchain.document_loaders import PyPDFLoader
+                from langchain.text_splitter import RecursiveCharacterTextSplitter
+            except ImportError:
+                print("Warning: langchain document loaders not available. Using fallback.")
+                return None, [], []
+
+        all_texts = []
+        all_sources = []
+
+        subjects_folder = os.path.join(self.pdf_folder_path, 'subjects')
+
+        for subject_dir in subject_directories:
+            subject_path = os.path.join(subjects_folder, subject_dir)
+
+            if not os.path.exists(subject_path):
+                print(f"Warning: Subject directory not found: {subject_path}")
+                continue
+
+            # Load PDFs from this subject directory
+            for filename in os.listdir(subject_path):
+                if filename.lower().endswith('.pdf'):
+                    file_path = os.path.join(subject_path, filename)
+                    try:
+                        loader = PyPDFLoader(file_path)
+                        documents = loader.load()
+
+                        # Split documents into chunks
+                        text_splitter = RecursiveCharacterTextSplitter(
+                            chunk_size=1000,
+                            chunk_overlap=200
+                        )
+
+                        for doc in documents:
+                            chunks = text_splitter.split_text(doc.page_content)
+                            for chunk in chunks:
+                                all_texts.append(chunk)
+                                all_sources.append(f"{subject_dir}/{filename}")
+
+                    except Exception as e:
+                        print(f"Error loading {file_path}: {str(e)}")
+                        continue
+
+        # Create embeddings if we have texts
+        embeddings = None
+        if all_texts and SENTENCE_TRANSFORMERS_AVAILABLE:
+            try:
+                from langchain_community.embeddings import HuggingFaceEmbeddings
+                embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+            except Exception as e:
+                print(f"Warning: Could not create embeddings: {str(e)}")
+
+        return embeddings, all_texts, all_sources
 
     def generate_rag_response(self, query: str, context_docs: List[Dict] = None) -> Dict:
         """Generate response using RAG with Ollama"""

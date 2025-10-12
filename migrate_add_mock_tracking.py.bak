@@ -1,0 +1,178 @@
+#!/usr/bin/env python3
+"""
+Database Migration Script: Add mock test tracking columns to exam_category_purchase table
+This script adds total_mock_tests and mock_tests_used fields to track mock test usage.
+"""
+
+import sys
+import os
+from sqlalchemy import text
+
+# Add the project root to Python path
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+from shared.models.user import db
+from shared.models.course import ExamCategory, ExamCategorySubject
+from shared.models.purchase import ExamCategoryPurchase
+from app import create_app
+
+def migrate_add_mock_tracking():
+    """Add mock test tracking columns to exam_category_purchase table"""
+    
+    app = create_app()
+    
+    with app.app_context():
+        try:
+            print("🚀 Starting migration: Add mock test tracking to exam_category_purchase")
+            print("=" * 70)
+            
+            # Check if columns already exist
+            print("📝 Checking if mock tracking columns already exist...")
+            
+            result = db.session.execute(text("""
+                SELECT COLUMN_NAME 
+                FROM INFORMATION_SCHEMA.COLUMNS 
+                WHERE TABLE_NAME = 'exam_category_purchase' 
+                AND TABLE_SCHEMA = DATABASE()
+                AND COLUMN_NAME IN ('total_mock_tests', 'mock_tests_used')
+            """))
+            existing_columns = [row[0] for row in result.fetchall()]
+            
+            if 'total_mock_tests' in existing_columns and 'mock_tests_used' in existing_columns:
+                print("⚠️  Mock tracking columns already exist in exam_category_purchase table")
+                print("✅ Migration already applied!")
+                return True
+            
+            # Add mock tracking columns
+            print("📝 Adding mock test tracking columns to exam_category_purchase table...")
+            
+            if 'total_mock_tests' not in existing_columns:
+                db.session.execute(text("""
+                    ALTER TABLE exam_category_purchase 
+                    ADD COLUMN total_mock_tests INT DEFAULT 0 COMMENT 'Total mock tests purchased'
+                """))
+                print("✅ Added 'total_mock_tests' column")
+            
+            if 'mock_tests_used' not in existing_columns:
+                db.session.execute(text("""
+                    ALTER TABLE exam_category_purchase 
+                    ADD COLUMN mock_tests_used INT DEFAULT 0 COMMENT 'Mock tests already taken'
+                """))
+                print("✅ Added 'mock_tests_used' column")
+            
+            # Update existing purchases with default values based on subject's total_mock
+            print("📝 Setting mock test values for existing purchases...")
+            
+            # For subject purchases, set total_mock_tests from subject's total_mock
+            db.session.execute(text("""
+                UPDATE exam_category_purchase ecp
+                JOIN exam_category_subjects ecs ON ecp.subject_id = ecs.id
+                SET ecp.total_mock_tests = COALESCE(ecs.total_mock, 50)
+                WHERE ecp.subject_id IS NOT NULL 
+                AND ecp.total_mock_tests = 0
+            """))
+            print("✅ Set total_mock_tests for subject purchases")
+            
+            # For full course purchases (no subject_id), set a higher value
+            db.session.execute(text("""
+                UPDATE exam_category_purchase 
+                SET total_mock_tests = 150
+                WHERE subject_id IS NULL 
+                AND total_mock_tests = 0
+            """))
+            print("✅ Set total_mock_tests = 150 for full course purchases")
+            
+            # Commit the changes
+            db.session.commit()
+            print("✅ Database migration completed successfully!")
+            
+            # Display summary
+            print("\n📊 Migration Summary:")
+            print("=" * 50)
+            print("✅ Added total_mock_tests column to exam_category_purchase table")
+            print("✅ Added mock_tests_used column to exam_category_purchase table")
+            print("✅ Set mock test values for existing purchases")
+            
+            # Show current purchases with their mock test values
+            purchases = ExamCategoryPurchase.query.limit(5).all()
+            print(f"\n📋 Sample purchases with mock test values:")
+            for purchase in purchases:
+                subject_name = purchase.subject.subject_name if purchase.subject else "Full Course"
+                print(f"  • {subject_name}: {purchase.total_mock_tests} total, {purchase.mock_tests_used} used")
+            
+            return True
+            
+        except Exception as e:
+            print(f"❌ Migration failed: {str(e)}")
+            db.session.rollback()
+            return False
+
+def rollback_migration():
+    """Rollback the migration by removing the mock tracking columns"""
+    
+    app = create_app()
+    
+    with app.app_context():
+        try:
+            print("🔄 Rolling back migration: Remove mock tracking columns")
+            print("=" * 70)
+            
+            # Check if columns exist before trying to drop them
+            result = db.session.execute(text("""
+                SELECT COLUMN_NAME 
+                FROM INFORMATION_SCHEMA.COLUMNS 
+                WHERE TABLE_NAME = 'exam_category_purchase' 
+                AND TABLE_SCHEMA = DATABASE()
+                AND COLUMN_NAME IN ('total_mock_tests', 'mock_tests_used')
+            """))
+            existing_columns = [row[0] for row in result.fetchall()]
+            
+            if not existing_columns:
+                print("⚠️  Mock tracking columns do not exist in exam_category_purchase table")
+                print("✅ Nothing to rollback!")
+                return True
+            
+            # Drop the columns
+            if 'total_mock_tests' in existing_columns:
+                db.session.execute(text("""
+                    ALTER TABLE exam_category_purchase 
+                    DROP COLUMN total_mock_tests
+                """))
+                print("✅ Removed total_mock_tests column")
+            
+            if 'mock_tests_used' in existing_columns:
+                db.session.execute(text("""
+                    ALTER TABLE exam_category_purchase 
+                    DROP COLUMN mock_tests_used
+                """))
+                print("✅ Removed mock_tests_used column")
+            
+            db.session.commit()
+            print("✅ Successfully removed mock tracking columns")
+            return True
+            
+        except Exception as e:
+            print(f"❌ Rollback failed: {str(e)}")
+            db.session.rollback()
+            return False
+
+if __name__ == "__main__":
+    import argparse
+    
+    parser = argparse.ArgumentParser(description='Migrate database to add mock test tracking')
+    parser.add_argument('--rollback', action='store_true', 
+                       help='Rollback the migration (remove mock tracking columns)')
+    
+    args = parser.parse_args()
+    
+    if args.rollback:
+        success = rollback_migration()
+    else:
+        success = migrate_add_mock_tracking()
+    
+    if success:
+        print("\n🎉 Migration completed successfully!")
+        sys.exit(0)
+    else:
+        print("\n💥 Migration failed!")
+        sys.exit(1)

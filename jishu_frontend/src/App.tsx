@@ -16,6 +16,7 @@ import TestResultDashboard from './components/TestResultDashboard';
 import CommunityBlog from './components/CommunityBlog';
 import PostDetails from './components/PostDetails';
 import AIChatbot from './components/AIChatbot';
+import MCQGenerator from './components/MCQGenerator';
 import UserProfile from './components/UserProfile';
 import AccountManagement from './components/AccountManagement';
 import LogoutConfirmation from './components/LogoutConfirmation';
@@ -101,6 +102,10 @@ export default function App() {
           element={isAuthenticated ? <TestResultDashboard user={user} /> : <Navigate to="/auth" />}
         />
         <Route
+          path="/dashboard"
+          element={isAuthenticated ? <Navigate to="/results" /> : <Navigate to="/auth" />}
+        />
+        <Route
           path="/community"
           element={isAuthenticated ? <CommunityBlog user={user} /> : <Navigate to="/auth" />}
         />
@@ -111,6 +116,10 @@ export default function App() {
         <Route
           path="/chatbot"
           element={isAuthenticated ? <AIChatbot user={user} /> : <Navigate to="/auth" />}
+        />
+        <Route
+          path="/mcq-generator"
+          element={isAuthenticated && isAdmin ? <MCQGenerator user={user} /> : <Navigate to="/auth" />}
         />
         <Route
           path="/profile"

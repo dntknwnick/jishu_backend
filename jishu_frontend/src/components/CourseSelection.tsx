@@ -146,7 +146,7 @@ export default function CourseSelection({ user }: CourseSelectionProps) {
             const colorScheme = colorSchemes[index % colorSchemes.length];
             const icon = getIconForCourse(course.course_name);
             const subjectCount = course.subjects?.length || 0;
-            const testCount = subjectCount * 50;
+            const testCount = course.subjects?.reduce((total, subject) => total + (subject.total_mock || 50), 0) || (subjectCount * 50);
             const studentCount = Math.floor(Math.random() * 20000) + 5000; // Mock student count
 
             return (

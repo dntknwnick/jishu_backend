@@ -1,0 +1,153 @@
+#!/usr/bin/env python3
+"""
+Database Migration Script: Add total_mock column to exam_category_subjects table
+This script adds the total_mock field to track available mock tests per subject.
+"""
+
+import sys
+import os
+from sqlalchemy import text
+
+# Add the project root to Python path
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+from shared.models.user import db
+from shared.models.course import ExamCategory, ExamCategorySubject
+from shared.models.purchase import ExamCategoryPurchase
+from app import create_app
+
+def migrate_add_total_mock():
+    """Add total_mock column to exam_category_subjects table"""
+    
+    app = create_app()
+    
+    with app.app_context():
+        try:
+            print("🚀 Starting migration: Add total_mock column to exam_category_subjects")
+            print("=" * 70)
+            
+            # Check if total_mock column already exists
+            print("📝 Checking if total_mock column already exists...")
+            
+            result = db.session.execute(text("""
+                SELECT COLUMN_NAME 
+                FROM INFORMATION_SCHEMA.COLUMNS 
+                WHERE TABLE_NAME = 'exam_category_subjects' 
+                AND TABLE_SCHEMA = DATABASE()
+                AND COLUMN_NAME = 'total_mock'
+            """))
+            existing_columns = [row[0] for row in result.fetchall()]
+            
+            if 'total_mock' in existing_columns:
+                print("⚠️  Column 'total_mock' already exists in exam_category_subjects table")
+                print("✅ Migration already applied!")
+                return True
+            
+            # Add total_mock column
+            print("📝 Adding total_mock column to exam_category_subjects table...")
+            
+            db.session.execute(text("""
+                ALTER TABLE exam_category_subjects 
+                ADD COLUMN total_mock INT DEFAULT 50 COMMENT 'Total number of mock tests available for this subject'
+            """))
+            print("✅ Added 'total_mock' column to exam_category_subjects")
+            
+            # Update existing subjects with default values
+            print("📝 Setting default total_mock values for existing subjects...")
+            
+            # Set default values: 50 for individual subjects, will be updated during purchase
+            db.session.execute(text("""
+                UPDATE exam_category_subjects 
+                SET total_mock = 50 
+                WHERE total_mock IS NULL
+            """))
+            print("✅ Set default total_mock = 50 for existing subjects")
+            
+            # Commit the changes
+            db.session.commit()
+            print("✅ Database migration completed successfully!")
+            
+            # Display summary
+            print("\n📊 Migration Summary:")
+            print("=" * 50)
+            print("✅ Added total_mock column to exam_category_subjects table")
+            print("✅ Set default total_mock = 50 for existing subjects")
+            print("✅ Column allows NULL values and has default of 50")
+            
+            # Show current subjects with their total_mock values
+            subjects = ExamCategorySubject.query.all()
+            print(f"\n📋 Current subjects count: {len(subjects)}")
+            if subjects:
+                print("Sample subjects with total_mock values:")
+                for subject in subjects[:5]:  # Show first 5
+                    print(f"  • {subject.subject_name}: {subject.total_mock} mock tests")
+                if len(subjects) > 5:
+                    print(f"  ... and {len(subjects) - 5} more subjects")
+            
+            return True
+            
+        except Exception as e:
+            print(f"❌ Migration failed: {str(e)}")
+            db.session.rollback()
+            return False
+
+def rollback_migration():
+    """Rollback the migration by removing the total_mock column"""
+    
+    app = create_app()
+    
+    with app.app_context():
+        try:
+            print("🔄 Rolling back migration: Remove total_mock column")
+            print("=" * 70)
+            
+            # Check if column exists before trying to drop it
+            result = db.session.execute(text("""
+                SELECT COLUMN_NAME 
+                FROM INFORMATION_SCHEMA.COLUMNS 
+                WHERE TABLE_NAME = 'exam_category_subjects' 
+                AND TABLE_SCHEMA = DATABASE()
+                AND COLUMN_NAME = 'total_mock'
+            """))
+            existing_columns = [row[0] for row in result.fetchall()]
+            
+            if 'total_mock' not in existing_columns:
+                print("⚠️  Column 'total_mock' does not exist in exam_category_subjects table")
+                print("✅ Nothing to rollback!")
+                return True
+            
+            # Drop the total_mock column
+            db.session.execute(text("""
+                ALTER TABLE exam_category_subjects 
+                DROP COLUMN total_mock
+            """))
+            
+            db.session.commit()
+            print("✅ Successfully removed total_mock column")
+            return True
+            
+        except Exception as e:
+            print(f"❌ Rollback failed: {str(e)}")
+            db.session.rollback()
+            return False
+
+if __name__ == "__main__":
+    import argparse
+    
+    parser = argparse.ArgumentParser(description='Migrate database to add total_mock column')
+    parser.add_argument('--rollback', action='store_true', 
+                       help='Rollback the migration (remove total_mock column)')
+    
+    args = parser.parse_args()
+    
+    if args.rollback:
+        success = rollback_migration()
+    else:
+        success = migrate_add_total_mock()
+    
+    if success:
+        print("\n🎉 Migration completed successfully!")
+        sys.exit(0)
+    else:
+        print("\n💥 Migration failed!")
+        sys.exit(1)

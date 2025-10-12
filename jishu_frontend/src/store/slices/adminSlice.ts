@@ -185,6 +185,7 @@ export const createSubject = createAsyncThunk(
       amount?: number;
       offer_amount?: number;
       max_tokens?: number;
+      total_mock?: number;
     },
     { rejectWithValue }
   ) => {
@@ -210,6 +211,7 @@ export const updateSubject = createAsyncThunk(
         amount?: number;
         offer_amount?: number;
         max_tokens?: number;
+        total_mock?: number;
       }
     },
     { rejectWithValue }

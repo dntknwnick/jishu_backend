@@ -54,6 +54,8 @@ class GoogleOAuthService:
         """Exchange authorization code for access token and user info"""
         try:
             print(f"🔄 Exchanging authorization code for token...")
+            print(f"🔧 Using redirect URI: {self.redirect_uri}")
+            print(f"🔧 Authorization code length: {len(authorization_code) if authorization_code else 0}")
 
             # Fetch token
             self.flow.fetch_token(code=authorization_code)
@@ -61,6 +63,8 @@ class GoogleOAuthService:
             # Get credentials
             credentials = self.flow.credentials
             print(f"✅ Successfully obtained credentials")
+            print(f"🔧 Token type: {type(credentials.token)}")
+            print(f"🔧 Token expires: {credentials.expiry}")
 
             # Get user info from Google
             user_info_response = requests.get(
@@ -80,6 +84,13 @@ class GoogleOAuthService:
         except Exception as e:
             error_msg = f"Error exchanging code for token: {str(e)}"
             print(f"❌ {error_msg}")
+            print(f"🔧 Exception type: {type(e).__name__}")
+            print(f"🔧 Exception details: {str(e)}")
+
+            # Check if it's a specific OAuth error
+            if hasattr(e, 'response') and hasattr(e.response, 'text'):
+                print(f"🔧 Response text: {e.response.text}")
+
             return False, error_msg
     
     def verify_id_token(self, token):

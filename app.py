@@ -14,7 +14,11 @@ from shared.models.user import db, User
 from shared.models.course import ExamCategory, ExamCategorySubject
 from shared.models.purchase import ExamCategoryPurchase, ExamCategoryQuestion, TestAttempt, TestAnswer
 from shared.models.community import BlogPost, BlogLike, BlogComment, AIChatHistory, UserAIStats
-from shared.utils.validators import validate_email_format, validate_mobile_number, validate_name
+from shared.utils.validators import (
+    validate_email_format, validate_mobile_number, validate_name, validate_otp,
+    validate_subject_name, validate_course_name, validate_price, validate_token_count,
+    validate_mock_test_count, validate_blog_title, validate_blog_content, validate_tags
+)
 from shared.utils.response_helper import success_response, error_response, validation_error_response
 from shared.utils.email_service import email_service
 from shared.utils.google_oauth import create_google_oauth_service
@@ -75,6 +79,16 @@ def create_app(config_name='development'):
             'version': '1.0.0',
             'architecture': 'monolithic'
         })
+
+    @app.route('/api/config/dev-settings', methods=['GET'])
+    def get_dev_settings():
+        """Get development configuration settings (for debugging)"""
+        return success_response({
+            'LOCAL_DEV_MODE': app.config.get('LOCAL_DEV_MODE', False),
+            'BYPASS_PURCHASE_VALIDATION': app.config.get('BYPASS_PURCHASE_VALIDATION', False),
+            'DEBUG': app.config.get('DEBUG', False),
+            'environment': 'development' if app.config.get('DEBUG') else 'production'
+        }, "Development settings retrieved")
 
     # --- AUTH ENDPOINTS ---
 
@@ -203,6 +217,10 @@ def create_app(config_name='development'):
             if not is_valid_name:
                 return error_response(name_message, 400)
 
+            is_valid_otp, otp_message = validate_otp(otp)
+            if not is_valid_otp:
+                return error_response(otp_message, 400)
+
             # Check if user exists
             user = User.query.filter_by(email_id=email_id).first()
             if not user:
@@ -265,6 +283,10 @@ def create_app(config_name='development'):
 
             if user.status != 'active':
                 return error_response("Account is not active", 403)
+
+            # Check authentication method validation
+            if user.auth_provider == 'google':
+                return error_response("This account was created with Google. Please use Google Sign-In to login.", 400)
 
             # Verify OTP
             is_valid, message = user.verify_otp(otp)
@@ -336,9 +358,14 @@ def create_app(config_name='development'):
                     email_id=email_id,
                     name='',  # Will be filled during registration
                     mobile_no='',  # Will be filled during registration
-                    status='inactive'  # Will be activated after OTP verification
+                    status='inactive',  # Will be activated after OTP verification
+                    auth_provider='manual'  # Set as manual registration
                 )
                 db.session.add(user)
+            else:
+                # Check authentication method for existing users
+                if user.auth_provider == 'google':
+                    return error_response("This account was created with Google. Please use Google Sign-In to login.", 400)
 
             # Generate and send OTP
             otp = user.generate_otp()
@@ -501,6 +528,8 @@ def create_app(config_name='development'):
         """Get subjects for a specific course (public endpoint)"""
         try:
             course_id = request.args.get('course_id', type=int)
+            include_deleted = request.args.get('include_deleted', 'false').lower() == 'true'
+
             if not course_id:
                 return error_response("course_id parameter is required", 400)
 
@@ -512,10 +541,15 @@ def create_app(config_name='development'):
             page = request.args.get('page', 1, type=int)
             per_page = request.args.get('per_page', 10, type=int)
 
-            # Get subjects for the course
-            subjects = ExamCategorySubject.query.filter_by(exam_category_id=course_id).paginate(
-                page=page, per_page=per_page, error_out=False
-            )
+            # Get subjects for the course (exclude deleted and bundles by default)
+            query = ExamCategorySubject.query.filter_by(exam_category_id=course_id)
+            if not include_deleted:
+                query = query.filter_by(is_deleted=False)
+
+            # Exclude bundle subjects from regular subject listing
+            query = query.filter_by(is_bundle=False)
+
+            subjects = query.paginate(page=page, per_page=per_page, error_out=False)
 
             return success_response({
                 'subjects': [subject.to_dict() for subject in subjects.items],
@@ -532,6 +566,36 @@ def create_app(config_name='development'):
 
         except Exception as e:
             return error_response(f"Failed to get subjects: {str(e)}", 500)
+
+    @app.route('/api/bundles', methods=['GET'])
+    def api_get_bundles():
+        """Get bundles for a specific course (public endpoint)"""
+        try:
+            course_id = request.args.get('course_id', type=int)
+            include_deleted = request.args.get('include_deleted', 'false').lower() == 'true'
+
+            if not course_id:
+                return error_response("course_id parameter is required", 400)
+
+            # Check if course exists
+            course = ExamCategory.query.get(course_id)
+            if not course:
+                return error_response("Course not found", 404)
+
+            # Get bundle subjects for the course
+            query = ExamCategorySubject.query.filter_by(exam_category_id=course_id, is_bundle=True)
+            if not include_deleted:
+                query = query.filter_by(is_deleted=False)
+
+            bundles = query.all()
+
+            return success_response({
+                'bundles': [bundle.to_dict() for bundle in bundles],
+                'course': course.to_dict(include_subjects=False)
+            }, "Bundles retrieved successfully")
+
+        except Exception as e:
+            return error_response(f"Failed to get bundles: {str(e)}", 500)
 
     @app.route('/api/admin/courses', methods=['GET'])
     @admin_required
@@ -746,6 +810,8 @@ def create_app(config_name='development'):
             amount = data.get('amount', 0.00)
             offer_amount = data.get('offer_amount', 0.00)
             max_tokens = data.get('max_tokens', 100)
+            total_mock = data.get('total_mock', 50)
+            is_bundle = data.get('is_bundle', False)
 
             if not course_id or not subject_name:
                 return error_response("course_id and subject_name are required", 400)
@@ -756,19 +822,31 @@ def create_app(config_name='development'):
                 return error_response("Course not found", 404)
 
             # Validation
-            if len(subject_name.strip()) < 2:
-                return error_response("Subject name must be at least 2 characters long", 400)
+            is_valid_subject, subject_message = validate_subject_name(subject_name)
+            if not is_valid_subject:
+                return error_response(subject_message, 400)
 
-            # Validate pricing
-            try:
-                amount = float(amount) if amount else 0.00
-                offer_amount = float(offer_amount) if offer_amount else 0.00
-                max_tokens = int(max_tokens) if max_tokens else 100
-            except (ValueError, TypeError):
-                return error_response("Invalid pricing or token values", 400)
+            is_valid_amount, amount_message = validate_price(amount)
+            if not is_valid_amount:
+                return error_response(f"Amount: {amount_message}", 400)
 
-            if amount < 0 or offer_amount < 0 or max_tokens < 0:
-                return error_response("Pricing and token values must be non-negative", 400)
+            is_valid_offer, offer_message = validate_price(offer_amount)
+            if not is_valid_offer:
+                return error_response(f"Offer amount: {offer_message}", 400)
+
+            is_valid_tokens, tokens_message = validate_token_count(max_tokens)
+            if not is_valid_tokens:
+                return error_response(f"Max tokens: {tokens_message}", 400)
+
+            is_valid_mock, mock_message = validate_mock_test_count(total_mock)
+            if not is_valid_mock:
+                return error_response(f"Total mock tests: {mock_message}", 400)
+
+            # Convert to proper types
+            amount = float(amount) if amount else 0.00
+            offer_amount = float(offer_amount) if offer_amount else 0.00
+            max_tokens = int(max_tokens) if max_tokens else 100
+            total_mock = int(total_mock) if total_mock else 50
 
             # Check if subject already exists in this course
             existing_subject = ExamCategorySubject.query.filter_by(
@@ -784,7 +862,9 @@ def create_app(config_name='development'):
                 subject_name=subject_name.strip(),
                 amount=amount,
                 offer_amount=offer_amount,
-                max_tokens=max_tokens
+                max_tokens=max_tokens,
+                total_mock=total_mock,
+                is_bundle=is_bundle
             )
 
             db.session.add(new_subject)
@@ -812,6 +892,9 @@ def create_app(config_name='development'):
             amount = data.get('amount')
             offer_amount = data.get('offer_amount')
             max_tokens = data.get('max_tokens')
+            total_mock = data.get('total_mock')
+            is_bundle = data.get('is_bundle')
+            is_deleted = data.get('is_deleted')
 
             # Validation for subject name
             if subject_name:
@@ -856,6 +939,22 @@ def create_app(config_name='development'):
                     subject.max_tokens = max_tokens
                 except (ValueError, TypeError):
                     return error_response("Invalid max tokens value", 400)
+
+            if total_mock is not None:
+                try:
+                    total_mock = int(total_mock)
+                    if total_mock < 0:
+                        return error_response("Total mock tests must be non-negative", 400)
+                    subject.total_mock = total_mock
+                except (ValueError, TypeError):
+                    return error_response("Invalid total mock tests value", 400)
+
+            if is_bundle is not None:
+                subject.is_bundle = bool(is_bundle)
+
+            if is_deleted is not None:
+                subject.is_deleted = bool(is_deleted)
+
             db.session.commit()
 
             return success_response({
@@ -869,22 +968,20 @@ def create_app(config_name='development'):
     @app.route('/api/admin/subjects/<int:subject_id>', methods=['DELETE'])
     @admin_required
     def api_admin_delete_subject(subject_id):
-        """Delete subject (Admin only)"""
+        """Soft delete subject (Admin only)"""
         try:
             subject = ExamCategorySubject.query.get(subject_id)
             if not subject:
                 return error_response("Subject not found", 404)
 
-            # Check if subject has any purchases
-            purchases = ExamCategoryPurchase.query.filter_by(subject_id=subject_id).first()
-            if purchases:
-                return error_response("Cannot delete subject with existing purchases", 400)
-
-            db.session.delete(subject)
+            # Soft delete the subject
+            subject.is_deleted = True
             db.session.commit()
 
             return success_response({
-                'message': 'Subject deleted successfully'
+                'message': 'Subject deleted successfully',
+                'subject_id': subject_id,
+                'subject_name': subject.subject_name
             }, "Subject deleted successfully")
 
         except Exception as e:
@@ -925,8 +1022,32 @@ def create_app(config_name='development'):
             # Paginate results
             posts = query.paginate(page=page, per_page=per_page, error_out=False)
 
+            # Get current user for like status (if authenticated)
+            current_user = None
+            try:
+                current_user = get_current_user()
+            except:
+                pass  # Not authenticated, that's fine
+
+            # Add user-specific like status to posts
+            posts_data = []
+            for post in posts.items:
+                post_dict = post.to_dict(include_user=True)
+
+                # Check if current user liked this post
+                if current_user:
+                    user_like = BlogLike.query.filter_by(
+                        user_id=current_user.id,
+                        post_id=post.id
+                    ).first()
+                    post_dict['is_liked'] = user_like is not None
+                else:
+                    post_dict['is_liked'] = False
+
+                posts_data.append(post_dict)
+
             return success_response({
-                'posts': [post.to_dict(include_user=True) for post in posts.items],
+                'posts': posts_data,
                 'pagination': {
                     'page': posts.page,
                     'pages': posts.pages,
@@ -989,11 +1110,17 @@ def create_app(config_name='development'):
             tags = data.get('tags', '').strip()
 
             # Validation
-            if not title or len(title) < 5:
-                return error_response("Title must be at least 5 characters long", 400)
+            is_valid_title, title_message = validate_blog_title(title)
+            if not is_valid_title:
+                return error_response(title_message, 400)
 
-            if not content or len(content) < 10:
-                return error_response("Content must be at least 10 characters long", 400)
+            is_valid_content, content_message = validate_blog_content(content)
+            if not is_valid_content:
+                return error_response(content_message, 400)
+
+            is_valid_tags, tags_message = validate_tags(tags)
+            if not is_valid_tags:
+                return error_response(tags_message, 400)
 
             # Create new post
             new_post = BlogPost(
@@ -1072,8 +1199,14 @@ def create_app(config_name='development'):
             parent_comment_id = data.get('parent_comment_id')
 
             # Validation
-            if not content or len(content) < 3:
+            if not content or not isinstance(content, str):
+                return error_response("Comment content is required", 400)
+
+            if len(content) < 3:
                 return error_response("Comment must be at least 3 characters long", 400)
+
+            if len(content) > 1000:
+                return error_response("Comment must be less than 1000 characters", 400)
 
             # If replying to a comment, check if parent comment exists
             if parent_comment_id:
@@ -1460,11 +1593,11 @@ def create_app(config_name='development'):
         except Exception as e:
             return error_response(f"Failed to get token status: {str(e)}", 500)
 
-    # Purchase Endpoints
+    # Auto-Purchase Endpoints (Payment Logic Removed)
     @app.route('/api/purchases', methods=['POST'])
     @user_required
     def api_create_purchase():
-        """Create a new purchase (Demo - no payment processing)"""
+        """Auto-create purchase record without payment processing"""
         try:
             user = get_current_user()
             if not user:
@@ -1473,7 +1606,6 @@ def create_app(config_name='development'):
             data = request.get_json()
             course_id = data.get('course_id')
             subject_id = data.get('subject_id')
-            payment_method = data.get('payment_method', 'demo')
 
             # Validation
             if not course_id:
@@ -1491,12 +1623,6 @@ def create_app(config_name='development'):
                 if not subject or subject.exam_category_id != course_id:
                     return error_response("Subject not found or doesn't belong to this course", 404)
 
-            # Calculate cost
-            if subject:
-                cost = subject.offer_amount if subject.offer_amount > 0 else subject.amount
-            else:
-                cost = course.offer_amount if course.offer_amount > 0 else course.amount
-
             # Check if user already purchased this item
             existing_purchase = ExamCategoryPurchase.query.filter_by(
                 user_id=user.id,
@@ -1505,16 +1631,31 @@ def create_app(config_name='development'):
             ).first()
 
             if existing_purchase:
-                return error_response("You have already purchased this item", 409)
+                return success_response({
+                    'purchase': existing_purchase.to_dict(),
+                    'message': 'You already have access to this content!'
+                }, "Access already granted")
 
-            # Create purchase record (demo - no actual payment processing)
+            # Determine total mock tests based on purchase type (no cost calculation)
+            if subject:
+                # Individual subject purchase
+                total_mock_tests = subject.total_mock or 50
+            else:
+                # Full course purchase - calculate total from all subjects or use default
+                course_subjects = ExamCategorySubject.query.filter_by(exam_category_id=course_id).all()
+                if course_subjects:
+                    total_mock_tests = sum(s.total_mock or 50 for s in course_subjects)
+                else:
+                    total_mock_tests = 150  # Default for full course
+
+            # Create purchase record (no payment processing)
             purchase = ExamCategoryPurchase(
                 user_id=user.id,
                 exam_category_id=course_id,
                 subject_id=subject_id,
-                cost=cost,
-                no_of_attempts=3,
-                attempts_used=0,
+                cost=0.00,  # No cost since payment is bypassed
+                total_mock_tests=total_mock_tests,
+                mock_tests_used=0,
                 status='active'
             )
 
@@ -1523,12 +1664,422 @@ def create_app(config_name='development'):
 
             return success_response({
                 'purchase': purchase.to_dict(),
-                'message': 'Purchase completed successfully! You now have access to the content.'
-            }, "Purchase created successfully")
+                'message': 'Access granted! You can now take tests for this content.'
+            }, "Auto-purchase completed successfully")
 
         except Exception as e:
             db.session.rollback()
-            return error_response(f"Failed to create purchase: {str(e)}", 500)
+            return error_response(f"Failed to create auto-purchase: {str(e)}", 500)
+
+    @app.route('/api/user/available-tests', methods=['GET'])
+    @user_required
+    def api_get_user_available_tests():
+        """Get user's available mock tests by subject"""
+        try:
+            user = get_current_user()
+            if not user:
+                return error_response("User not found", 404)
+
+            # Get user's purchases
+            purchases = ExamCategoryPurchase.query.filter_by(
+                user_id=user.id,
+                status='active'
+            ).all()
+
+            available_tests = []
+            for purchase in purchases:
+                if purchase.subject_id:
+                    # Individual subject purchase
+                    subject = ExamCategorySubject.query.get(purchase.subject_id)
+                    if subject:
+                        available_tests.append({
+                            'purchase_id': purchase.id,
+                            'subject_id': purchase.subject_id,
+                            'subject_name': subject.subject_name,
+                            'course_name': subject.exam_category.course_name,
+                            'total_mock_tests': purchase.total_mock_tests or 0,
+                            'mock_tests_used': purchase.mock_tests_used or 0,
+                            'available_tests': (purchase.total_mock_tests or 0) - (purchase.mock_tests_used or 0),
+                            'purchase_type': 'subject'
+                        })
+                else:
+                    # Full course purchase
+                    course = ExamCategory.query.get(purchase.exam_category_id)
+                    if course:
+                        # Show course-level usage tracking
+                        # Get subjects with their IDs for full course access
+                        course_subjects = ExamCategorySubject.query.filter_by(exam_category_id=course.id).all()
+                        subjects_data = [{'id': s.id, 'name': s.subject_name} for s in course_subjects]
+
+                        available_tests.append({
+                            'purchase_id': purchase.id,
+                            'subject_id': None,
+                            'subject_name': 'Full Course Access',
+                            'course_name': course.course_name,
+                            'total_mock_tests': purchase.total_mock_tests or 0,
+                            'mock_tests_used': purchase.mock_tests_used or 0,
+                            'available_tests': (purchase.total_mock_tests or 0) - (purchase.mock_tests_used or 0),
+                            'purchase_type': 'full_course',
+                            'subjects': subjects_data
+                        })
+
+            return success_response({
+                'available_tests': available_tests,
+                'total_purchases': len(purchases)
+            }, "Available tests retrieved successfully")
+
+        except Exception as e:
+            return error_response(f"Failed to get available tests: {str(e)}", 500)
+
+    @app.route('/api/dev/available-tests', methods=['GET'])
+    def api_dev_get_available_tests():
+        """Development endpoint - Get available tests without authentication"""
+        if not app.config.get('LOCAL_DEV_MODE', False):
+            return error_response("This endpoint is only available in development mode", 403)
+
+        try:
+            # Get all subjects for demo purposes
+            subjects = ExamCategorySubject.query.all()
+
+            available_tests = []
+            for subject in subjects:
+                available_tests.append({
+                    'purchase_id': None,
+                    'subject_id': subject.id,
+                    'subject_name': subject.subject_name,
+                    'course_name': subject.exam_category.course_name,
+                    'total_mock_tests': subject.total_mock or 50,
+                    'mock_tests_used': 0,
+                    'available_tests': subject.total_mock or 50,
+                    'purchase_type': 'demo'
+                })
+
+            return success_response({
+                'available_tests': available_tests,
+                'total_purchases': 0,
+                'dev_mode': True
+            }, "Available tests retrieved successfully (Development mode)")
+
+        except Exception as e:
+            return error_response(f"Failed to get available tests: {str(e)}", 500)
+
+    @app.route('/api/user/start-test', methods=['POST'])
+    @user_required
+    def api_start_test():
+        """Start a new mock test and track usage"""
+        try:
+            user = get_current_user()
+            if not user:
+                return error_response("User not found", 404)
+
+            data = request.get_json()
+            subject_id = data.get('subject_id')
+            purchase_id = data.get('purchase_id')
+
+            if not subject_id:
+                return error_response("Subject ID is required", 400)
+
+            # Verify user has access to this subject
+            if purchase_id:
+                purchase = ExamCategoryPurchase.query.filter_by(
+                    id=purchase_id,
+                    user_id=user.id,
+                    status='active'
+                ).first()
+            else:
+                # Find any active purchase that gives access to this subject
+                purchase = ExamCategoryPurchase.query.filter(
+                    ExamCategoryPurchase.user_id == user.id,
+                    ExamCategoryPurchase.status == 'active',
+                    db.or_(
+                        ExamCategoryPurchase.subject_id == subject_id,
+                        db.and_(
+                            ExamCategoryPurchase.subject_id.is_(None),
+                            ExamCategoryPurchase.exam_category_id == ExamCategorySubject.query.get(subject_id).exam_category_id
+                        )
+                    )
+                ).first()
+
+            if not purchase:
+                return error_response("No active purchase found for this subject", 403)
+
+            # Check if user has available tests
+            if purchase.subject_id == subject_id:
+                # Individual subject purchase
+                available_tests = (purchase.total_mock_tests or 0) - (purchase.mock_tests_used or 0)
+                if available_tests <= 0:
+                    return error_response("No mock tests remaining for this subject", 403)
+            else:
+                # Full course purchase - check total available tests
+                available_tests = (purchase.total_mock_tests or 0) - (purchase.mock_tests_used or 0)
+                if available_tests <= 0:
+                    return error_response("No mock tests remaining for this course", 403)
+
+            # Create test attempt record
+            test_attempt = TestAttempt(
+                user_id=user.id,
+                purchase_id=purchase.id,
+                exam_category_id=purchase.exam_category_id,
+                subject_id=subject_id,
+                total_questions=0,  # Will be updated when questions are generated
+                total_marks=0,      # Will be updated when questions are generated
+                status='in_progress'
+            )
+
+            db.session.add(test_attempt)
+            db.session.flush()  # Get the test attempt ID
+
+            db.session.commit()
+
+            return success_response({
+                'test_attempt_id': test_attempt.id,
+                'subject_id': subject_id,
+                'remaining_tests': available_tests,  # Don't decrement until test is completed
+                'message': 'Test started successfully',
+                'next_step': 'Generate questions for this test attempt'
+            }, "Test started successfully")
+
+        except Exception as e:
+            db.session.rollback()
+            return error_response(f"Failed to start test: {str(e)}", 500)
+
+    @app.route('/api/user/generate-test-questions', methods=['POST'])
+    @user_required
+    def api_generate_enhanced_test_questions():
+        """Generate questions for a test attempt with exam-specific logic"""
+        try:
+            user = get_current_user()
+            if not user:
+                return error_response("User not found", 404)
+
+            data = request.get_json()
+            test_attempt_id = data.get('test_attempt_id')
+
+            if not test_attempt_id:
+                return error_response("Test attempt ID is required", 400)
+
+            # Verify test attempt belongs to user
+            test_attempt = TestAttempt.query.filter_by(
+                id=test_attempt_id,
+                user_id=user.id
+            ).first()
+
+            if not test_attempt:
+                return error_response("Test attempt not found", 404)
+
+            # Get subject and course information
+            subject = ExamCategorySubject.query.get(test_attempt.subject_id)
+            if not subject:
+                return error_response("Subject not found", 404)
+
+            course = ExamCategory.query.get(subject.exam_category_id)
+            if not course:
+                return error_response("Course not found", 404)
+
+            # Determine purchase type and question count
+            purchase = ExamCategoryPurchase.query.filter_by(
+                user_id=user.id,
+                exam_category_id=course.id,
+                status='active'
+            ).first()
+
+            if not purchase:
+                return error_response("No active purchase found", 403)
+
+            # Determine question count based on purchase type
+            if purchase.subject_id:
+                # Individual subject purchase: 50 questions
+                num_questions = 50
+                exam_type = subject.subject_name
+                subject_directories = None  # Will be determined by subject name
+            else:
+                # Full course/bundle purchase: 150 questions
+                num_questions = 150
+                exam_type = course.course_name
+                subject_directories = None  # Will be determined by exam type
+
+            # Generate questions using enhanced AI service
+            try:
+                from shared.services.ai_service import get_ai_service
+
+                ai_service = get_ai_service(
+                    pdf_folder_path=app.config.get('AI_PDF_FOLDER'),
+                    ollama_model=app.config.get('AI_OLLAMA_MODEL', 'llama3.2:1b')
+                )
+
+                result = ai_service.generate_mcq_from_pdfs(
+                    num_questions=num_questions,
+                    subject_name=subject.subject_name,
+                    difficulty='medium',
+                    exam_type=exam_type,
+                    subject_directories=subject_directories
+                )
+
+                if not result['success']:
+                    return error_response(f"Failed to generate questions: {result['error']}", 500)
+
+                # Save questions to database
+                saved_questions = []
+                for i, question_data in enumerate(result['questions']):
+                    question = ExamCategoryQuestion(
+                        exam_category_id=course.id,
+                        subject_id=subject.id,
+                        question=question_data.get('question', ''),
+                        option_1=question_data.get('options', {}).get('A', ''),
+                        option_2=question_data.get('options', {}).get('B', ''),
+                        option_3=question_data.get('options', {}).get('C', ''),
+                        option_4=question_data.get('options', {}).get('D', ''),
+                        correct_answer=question_data.get('correct_answer', 'A'),
+                        explanation=question_data.get('explanation', ''),
+                        difficulty_level='medium',
+                        is_ai_generated=True,
+                        ai_model_used=app.config.get('AI_OLLAMA_MODEL', 'llama3.2:1b'),
+                        user_id=user.id,
+                        purchased_id=test_attempt.purchase_id if test_attempt.purchase_id else None
+                    )
+
+                    db.session.add(question)
+                    db.session.flush()  # Get question ID
+
+                    saved_questions.append({
+                        'id': question.id,
+                        'question': question.question,
+                        'options': {
+                            'A': question.option_1,
+                            'B': question.option_2,
+                            'C': question.option_3,
+                            'D': question.option_4
+                        },
+                        'correct_answer': question.correct_answer,
+                        'explanation': question.explanation
+                    })
+
+                # Update test attempt with question count
+                test_attempt.total_questions = len(saved_questions)
+                test_attempt.updated_at = datetime.utcnow()
+
+                db.session.commit()
+
+                return success_response({
+                    'test_attempt_id': test_attempt.id,
+                    'questions_generated': len(saved_questions),
+                    'questions': saved_questions,
+                    'purchase_type': 'subject' if purchase.subject_id else 'bundle',
+                    'exam_type': exam_type,
+                    'subject_directories_used': result.get('attempted_subjects', []),
+                    'sources_used': result.get('sources_used', []),
+                    'ai_model': app.config.get('AI_OLLAMA_MODEL', 'llama3.2:1b')
+                }, f"Generated {len(saved_questions)} questions successfully")
+
+            except Exception as ai_error:
+                return error_response(f"AI service error: {str(ai_error)}", 500)
+
+        except Exception as e:
+            db.session.rollback()
+            return error_response(f"Failed to generate test questions: {str(e)}", 500)
+
+    # Legacy endpoint removed - use /api/user/generate-test-questions instead
+
+
+
+    @app.route('/api/user/test/<int:test_attempt_id>/submit', methods=['POST'])
+    @user_required
+    def api_submit_test(test_attempt_id):
+        """Submit test answers and calculate results"""
+        try:
+            user = get_current_user()
+            if not user:
+                return error_response("User not found", 404)
+
+            # Verify test attempt belongs to user
+            test_attempt = TestAttempt.query.filter_by(
+                id=test_attempt_id,
+                user_id=user.id
+            ).first()
+
+            if not test_attempt:
+                return error_response("Test attempt not found", 404)
+
+            if test_attempt.status != 'in_progress':
+                return error_response("Test attempt is not in progress", 400)
+
+            data = request.get_json()
+            answers = data.get('answers', {})  # {question_id: selected_option_index}
+            time_taken = data.get('time_taken', 0)  # in seconds
+
+            # Get all questions for this test attempt
+            questions = ExamCategoryQuestion.query.filter_by(
+                purchased_id=test_attempt.purchase_id,
+                subject_id=test_attempt.subject_id
+            ).all()
+
+            if not questions:
+                return error_response("No questions found for this test", 404)
+
+            # Calculate results
+            correct_answers = 0
+            wrong_answers = 0
+            unanswered = 0
+
+            # Save individual answers
+            for question in questions:
+                question_id = str(question.id)
+                if question_id in answers:
+                    selected_option_index = answers[question_id]
+                    selected_option = [question.option_1, question.option_2, question.option_3, question.option_4][selected_option_index]
+                    is_correct = selected_option == question.correct_answer
+
+                    if is_correct:
+                        correct_answers += 1
+                    else:
+                        wrong_answers += 1
+
+                    # Save answer
+                    test_answer = TestAnswer(
+                        attempt_id=test_attempt.id,
+                        question_id=question.id,
+                        selected_answer=selected_option,
+                        is_correct=is_correct,
+                        time_taken=0  # Individual question time not tracked yet
+                    )
+                    db.session.add(test_answer)
+                else:
+                    unanswered += 1
+
+            # Update test attempt with results
+            test_attempt.correct_answers = correct_answers
+            test_attempt.wrong_answers = wrong_answers
+            test_attempt.unanswered = unanswered
+            test_attempt.marks_scored = correct_answers  # 1 mark per correct answer
+            test_attempt.percentage = (correct_answers / len(questions)) * 100 if questions else 0
+            test_attempt.time_taken = time_taken
+            test_attempt.completed_at = datetime.utcnow()
+            test_attempt.status = 'completed'
+
+            # Update purchase mock_tests_used counter
+            purchase = test_attempt.purchase
+            if purchase:
+                purchase.mock_tests_used = (purchase.mock_tests_used or 0) + 1
+                purchase.last_attempt_date = datetime.utcnow()
+
+            db.session.commit()
+
+            return success_response({
+                'test_attempt_id': test_attempt.id,
+                'total_questions': len(questions),
+                'correct_answers': correct_answers,
+                'wrong_answers': wrong_answers,
+                'unanswered': unanswered,
+                'marks_scored': test_attempt.marks_scored,
+                'total_marks': test_attempt.total_marks,
+                'percentage': float(test_attempt.percentage),
+                'time_taken': time_taken,
+                'completed_at': test_attempt.completed_at.isoformat()
+            }, "Test submitted successfully")
+
+        except Exception as e:
+            db.session.rollback()
+            return error_response(f"Failed to submit test: {str(e)}", 500)
 
     @app.route('/api/purchases', methods=['GET'])
     @user_required
@@ -1566,8 +2117,12 @@ def create_app(config_name='development'):
     def api_create_test_user():
         """Create a test user account for demo purposes"""
         try:
+            data = request.get_json() or {}
+            user_suffix = data.get('suffix', '')
+            email = f'testuser{user_suffix}@jishu.com'
+
             # Check if test user already exists
-            existing_user = User.query.filter_by(email_id='testuser@jishu.com').first()
+            existing_user = User.query.filter_by(email_id=email).first()
             if existing_user:
                 # Generate JWT tokens for existing user
                 access_token = create_access_token(identity=str(existing_user.id))
@@ -1582,9 +2137,9 @@ def create_app(config_name='development'):
 
             # Create test user
             test_user = User(
-                name='Test Admin User',
-                email_id='testuser@jishu.com',
-                mobile_no='9999999999',
+                name=f'Test Admin User{user_suffix}',
+                email_id=email,
+                mobile_no=f'999999999{user_suffix[-1] if user_suffix else "9"}',
                 otp_verified=True,
                 is_admin=True,  # Make this user an admin for testing
                 color_theme='light',
@@ -1616,6 +2171,31 @@ def create_app(config_name='development'):
         except Exception as e:
             db.session.rollback()
             return error_response(f"Failed to create test user: {str(e)}", 500)
+
+    @app.route('/api/dev/reset-purchases', methods=['POST'])
+    @user_required
+    def api_dev_reset_purchases():
+        """Development endpoint - Reset current user's purchases"""
+        if not app.config.get('LOCAL_DEV_MODE', False):
+            return error_response("This endpoint is only available in development mode", 403)
+
+        try:
+            user = get_current_user()
+            if not user:
+                return error_response("User not found", 404)
+
+            # Delete all purchases for current user
+            deleted_count = ExamCategoryPurchase.query.filter_by(user_id=user.id).delete()
+            db.session.commit()
+
+            return success_response({
+                'deleted_purchases': deleted_count,
+                'user_email': user.email_id
+            }, f"Reset {deleted_count} purchases for development testing")
+
+        except Exception as e:
+            db.session.rollback()
+            return error_response(f"Failed to reset purchases: {str(e)}", 500)
 
     @app.route('/api/admin/chat/tokens', methods=['GET'])
     @admin_required
@@ -2612,9 +3192,14 @@ def create_app(config_name='development'):
             if not authorization_code:
                 return error_response("Authorization code not provided", 400)
 
+            print(f"🔄 Processing Google OAuth verification...")
+            print(f"🔧 Authorization code received: {authorization_code[:20]}...")
+            print(f"🔧 Google OAuth redirect URI: {google_oauth.redirect_uri}")
+
             # Exchange code for user info
             success, user_info = google_oauth.exchange_code_for_token(authorization_code)
             if not success:
+                print(f"❌ Google OAuth exchange failed: {user_info}")
                 return error_response(f"Failed to get user info from Google: {user_info}", 400)
 
             # Extract user information
@@ -2629,6 +3214,10 @@ def create_app(config_name='development'):
             user = User.query.filter_by(email_id=email).first()
 
             if user:
+                # Check authentication method validation
+                if user.auth_provider == 'manual' and user.google_id is None:
+                    return error_response("This account was created with email/OTP. Please use email login instead of Google Sign-In.", 400)
+
                 # User exists - update Google ID if not set and log them in
                 if not user.google_id:
                     user.google_id = google_id
@@ -2689,6 +3278,26 @@ def create_app(config_name='development'):
         except Exception as e:
             db.session.rollback()
             return error_response(f"Google OAuth verification failed: {str(e)}", 500)
+
+    @app.route('/api/debug/google-oauth', methods=['GET'])
+    def debug_google_oauth():
+        """Debug endpoint to check Google OAuth configuration"""
+        try:
+            if not google_oauth:
+                return error_response("Google OAuth not configured", 503)
+
+            config_info = {
+                'client_id': app.config.get('GOOGLE_CLIENT_ID', 'Not set')[:20] + '...' if app.config.get('GOOGLE_CLIENT_ID') else 'Not set',
+                'client_secret_set': bool(app.config.get('GOOGLE_CLIENT_SECRET')),
+                'redirect_uri': google_oauth.redirect_uri,
+                'scopes': google_oauth.scopes,
+                'oauth_service_initialized': google_oauth is not None
+            }
+
+            return success_response(config_info, "Google OAuth configuration")
+
+        except Exception as e:
+            return error_response(f"Debug failed: {str(e)}", 500)
 
     # --- USER ENDPOINTS ---
     @app.route('/profile', methods=['GET'])
@@ -3192,13 +3801,6 @@ def create_app(config_name='development'):
     return app
 
 
-# Create the Flask application instance
-app = create_app()
-
-# Create database tables
-with app.app_context():
-    db.create_all()
-
 if __name__ == '__main__':
     print("🚀 Starting Jishu Backend - Complete Educational Platform API")
     print("📍 Server running on: http://localhost:5000")
@@ -3216,6 +3818,7 @@ if __name__ == '__main__':
     print("     • GET /api/courses - List all courses (public)")
     print("     • GET /api/courses/<id> - View course by ID (public)")
     print("     • GET /api/subjects?course_id=<id> - Get subjects for course (public)")
+    print("     • GET /api/bundles?course_id=<id> - Get bundles for course (public)")
     print("     • POST /api/admin/courses - Add new course (admin)")
     print("     • PUT /api/admin/courses/<id> - Edit course (admin)")
     print("     • DELETE /api/admin/courses/<id> - Delete course (admin)")
@@ -3261,6 +3864,13 @@ if __name__ == '__main__':
     print("🎯 Ready to handle requests!")
     print("📝 Note: Most endpoints require JWT authentication")
     print("🔑 Admin endpoints require admin privileges")
+
+    # Create the Flask application instance
+    app = create_app()
+
+    # Create database tables
+    with app.app_context():
+        db.create_all()
 
     app.run(
         host='0.0.0.0',
