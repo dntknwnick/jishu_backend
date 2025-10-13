@@ -12,11 +12,13 @@ import CourseSelection from './components/CourseSelection';
 import SubjectSelection from './components/SubjectSelection';
 import MockTestPurchase from './components/MockTestPurchase';
 import MCQTestScreen from './components/MCQTestScreen';
+import MCQGenerator from './components/MCQGenerator';
 import TestResultDashboard from './components/TestResultDashboard';
+import TestCardDashboard from './components/TestCardDashboard';
 import CommunityBlog from './components/CommunityBlog';
 import PostDetails from './components/PostDetails';
 import AIChatbot from './components/AIChatbot';
-import MCQGenerator from './components/MCQGenerator';
+
 import UserProfile from './components/UserProfile';
 import AccountManagement from './components/AccountManagement';
 import LogoutConfirmation from './components/LogoutConfirmation';
@@ -98,8 +100,16 @@ export default function App() {
           element={isAuthenticated ? <MCQTestScreen user={user} /> : <Navigate to="/auth" />}
         />
         <Route
+          path="/test"
+          element={isAuthenticated ? <MCQTestScreen user={user} /> : <Navigate to="/auth" />}
+        />
+        <Route
           path="/results"
           element={isAuthenticated ? <TestResultDashboard user={user} /> : <Navigate to="/auth" />}
+        />
+        <Route
+          path="/test-cards"
+          element={isAuthenticated ? <TestCardDashboard user={user} /> : <Navigate to="/auth" />}
         />
         <Route
           path="/dashboard"
@@ -119,8 +129,9 @@ export default function App() {
         />
         <Route
           path="/mcq-generator"
-          element={isAuthenticated && isAdmin ? <MCQGenerator user={user} /> : <Navigate to="/auth" />}
+          element={isAuthenticated && !isAdmin ? <MCQGenerator user={user} /> : <Navigate to="/auth" />}
         />
+
         <Route
           path="/profile"
           element={isAuthenticated ? <UserProfile user={user} onUpdateUser={handleUpdateUser} /> : <Navigate to="/auth" />}

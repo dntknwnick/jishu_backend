@@ -9,7 +9,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from './ui/dropdown-menu';
-import { Target, BookOpen, BarChart3, Users, MessageSquare, Menu, Settings, LogOut, User, Shield, Brain } from 'lucide-react';
+import { Target, BookOpen, BarChart3, Users, MessageSquare, Menu, Settings, LogOut, User, Shield } from 'lucide-react';
 import { Sheet, SheetContent, SheetTrigger } from './ui/sheet';
 import ThemeToggle from './ThemeToggle';
 
@@ -37,7 +37,6 @@ export default function Header({ user }: HeaderProps) {
   const adminNavItems = [
     { path: '/admin', label: 'Dashboard', icon: <BarChart3 className="w-4 h-4" /> },
     { path: '/admin/courses', label: 'Courses', icon: <BookOpen className="w-4 h-4" /> },
-    { path: '/mcq-generator', label: 'MCQ Generator', icon: <Brain className="w-4 h-4" /> },
     { path: '/admin/posts', label: 'Posts', icon: <Users className="w-4 h-4" /> },
     { path: '/admin/users', label: 'Users', icon: <User className="w-4 h-4" /> },
     { path: '/admin/payments', label: 'Payments', icon: <Settings className="w-4 h-4" /> },

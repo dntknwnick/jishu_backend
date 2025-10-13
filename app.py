@@ -9,10 +9,11 @@ from flask import Flask, request, jsonify
 from flask_jwt_extended import JWTManager, jwt_required, get_jwt_identity, create_access_token, create_refresh_token, get_jwt
 from flask_cors import CORS
 from datetime import datetime, timedelta
+import time
 
 from shared.models.user import db, User
 from shared.models.course import ExamCategory, ExamCategorySubject
-from shared.models.purchase import ExamCategoryPurchase, ExamCategoryQuestion, TestAttempt, TestAnswer
+from shared.models.purchase import ExamCategoryPurchase, ExamCategoryQuestion, TestAttempt, TestAnswer, MockTestAttempt, TestAttemptSession
 from shared.models.community import BlogPost, BlogLike, BlogComment, AIChatHistory, UserAIStats
 from shared.utils.validators import (
     validate_email_format, validate_mobile_number, validate_name, validate_otp,
@@ -1435,9 +1436,9 @@ def create_app(config_name='development'):
 
         max_tokens = daily_limit
         for purchase in purchases:
-            if purchase.course_id and not purchase.subject_id:
+            if purchase.exam_category_id and not purchase.subject_id:
                 # Full course purchase
-                course = ExamCategory.query.get(purchase.course_id)
+                course = ExamCategory.query.get(purchase.exam_category_id)
                 if course and course.max_tokens == 0:
                     return 0  # Unlimited tokens
                 elif course and course.max_tokens > max_tokens:
@@ -1500,7 +1501,7 @@ def create_app(config_name='development'):
                 return error_response("Please ask only academic/educational questions", 400)
 
             # Estimate tokens needed (simple estimation)
-            estimated_tokens = len(message.split()) + 50  # Estimate response tokens
+            estimated_tokens = len(message.split()) + 20  # More reasonable response token estimate
 
             # Check token limits
             can_proceed, token_limit, tokens_used_today = check_daily_token_limit(user, estimated_tokens)
@@ -1511,11 +1512,49 @@ def create_app(config_name='development'):
                     429
                 )
 
-            # TODO: Integrate with Ollama model here
-            # For now, we'll return a placeholder response
-            ai_response = f"This is a placeholder response for: {message}. Please integrate with your Ollama model."
-            tokens_used = len(message.split()) + len(ai_response.split())  # Simple token estimation
-            response_time = 1.5  # Placeholder response time
+            # Generate AI response using Ollama
+            start_time = datetime.utcnow()
+
+            try:
+                # Import and initialize AI service
+                from shared.services.ai_service import get_ai_service
+
+                ai_service = get_ai_service(
+                    pdf_folder_path=app.config.get('AI_PDF_FOLDER'),
+                    ollama_model=app.config.get('AI_OLLAMA_MODEL', 'llama3.2:1b')
+                )
+
+                # Create educational prompt for general chatbot
+                educational_prompt = f"""You are an educational AI assistant helping students learn. Please provide a clear, accurate, and educational response to the following question. Focus on explaining concepts clearly and providing helpful information for learning.
+
+Question: {message}
+
+Please provide a comprehensive educational response:"""
+
+                # Generate response using Ollama
+                try:
+                    import ollama
+                    response = ollama.chat(
+                        model=app.config.get('AI_OLLAMA_MODEL', 'llama3.2:1b'),
+                        messages=[{'role': 'user', 'content': educational_prompt}]
+                    )
+                except ImportError:
+                    raise Exception("Ollama package not available. Please install ollama to use AI chat features.")
+
+                ai_response = response['message']['content']
+
+                # Calculate response time
+                end_time = datetime.utcnow()
+                response_time = (end_time - start_time).total_seconds()
+
+                # Estimate tokens used (simple word count estimation)
+                tokens_used = len(message.split()) + len(ai_response.split())
+
+            except Exception as ai_error:
+                # Fallback to a helpful error message
+                ai_response = f"I apologize, but I'm currently unable to process your question due to a technical issue. Please try again later or contact support if the problem persists. Error: {str(ai_error)}"
+                tokens_used = len(message.split()) + len(ai_response.split())
+                response_time = 1.0
 
             # Save chat history
             chat_history = AIChatHistory(
@@ -1593,11 +1632,11 @@ def create_app(config_name='development'):
         except Exception as e:
             return error_response(f"Failed to get token status: {str(e)}", 500)
 
-    # Auto-Purchase Endpoints (Payment Logic Removed)
+    # Enhanced Purchase Endpoints with Mock Test Flow
     @app.route('/api/purchases', methods=['POST'])
     @user_required
     def api_create_purchase():
-        """Auto-create purchase record without payment processing"""
+        """Create purchase record with new mock test flow support"""
         try:
             user = get_current_user()
             if not user:
@@ -1605,30 +1644,79 @@ def create_app(config_name='development'):
 
             data = request.get_json()
             course_id = data.get('course_id')
-            subject_id = data.get('subject_id')
+            subject_id = data.get('subject_id')  # For single subject purchase
+            subject_ids = data.get('subject_ids', [])  # For multiple subjects purchase
+            purchase_type = data.get('purchase_type', 'single_subject')  # single_subject, multiple_subjects, full_bundle
 
             # Validation
             if not course_id:
                 return error_response("Course ID is required", 400)
+
+            if purchase_type not in ['single_subject', 'multiple_subjects', 'full_bundle']:
+                return error_response("Invalid purchase type", 400)
 
             # Check if course exists
             course = ExamCategory.query.get(course_id)
             if not course:
                 return error_response("Course not found", 404)
 
-            # Check if subject exists (if provided)
-            subject = None
-            if subject_id:
+            # Validate purchase type specific requirements
+            subjects_to_include = []
+
+            if purchase_type == 'single_subject':
+                if not subject_id:
+                    return error_response("Subject ID is required for single subject purchase", 400)
+
                 subject = ExamCategorySubject.query.get(subject_id)
                 if not subject or subject.exam_category_id != course_id:
                     return error_response("Subject not found or doesn't belong to this course", 404)
 
-            # Check if user already purchased this item
-            existing_purchase = ExamCategoryPurchase.query.filter_by(
-                user_id=user.id,
-                exam_category_id=course_id,
-                subject_id=subject_id
-            ).first()
+                subjects_to_include = [subject_id]
+
+            elif purchase_type == 'multiple_subjects':
+                if not subject_ids or len(subject_ids) < 2:
+                    return error_response("At least 2 subject IDs required for multiple subjects purchase", 400)
+
+                # Validate all subjects exist and belong to the course
+                subjects = ExamCategorySubject.query.filter(
+                    ExamCategorySubject.id.in_(subject_ids),
+                    ExamCategorySubject.exam_category_id == course_id
+                ).all()
+
+                if len(subjects) != len(subject_ids):
+                    return error_response("One or more subjects not found or don't belong to this course", 404)
+
+                subjects_to_include = subject_ids
+                subject_id = None  # For multiple subjects, subject_id should be None
+
+            elif purchase_type == 'full_bundle':
+                # Get all subjects for this course
+                course_subjects = ExamCategorySubject.query.filter_by(
+                    exam_category_id=course_id,
+                    is_deleted=False
+                ).all()
+
+                if not course_subjects:
+                    return error_response("No subjects found for this course", 404)
+
+                subjects_to_include = [s.id for s in course_subjects]
+                subject_id = None  # For bundle, subject_id should be None
+
+            # Check for existing purchases that would conflict
+            existing_purchase = None
+            if purchase_type == 'single_subject':
+                existing_purchase = ExamCategoryPurchase.query.filter_by(
+                    user_id=user.id,
+                    exam_category_id=course_id,
+                    subject_id=subject_id
+                ).first()
+            else:
+                # For multiple subjects or bundle, check if user already has full access
+                existing_purchase = ExamCategoryPurchase.query.filter_by(
+                    user_id=user.id,
+                    exam_category_id=course_id,
+                    purchase_type='full_bundle'
+                ).first()
 
             if existing_purchase:
                 return success_response({
@@ -1636,51 +1724,339 @@ def create_app(config_name='development'):
                     'message': 'You already have access to this content!'
                 }, "Access already granted")
 
-            # Determine total mock tests based on purchase type (no cost calculation)
-            if subject:
-                # Individual subject purchase
-                total_mock_tests = subject.total_mock or 50
-            else:
-                # Full course purchase - calculate total from all subjects or use default
-                course_subjects = ExamCategorySubject.query.filter_by(exam_category_id=course_id).all()
-                if course_subjects:
-                    total_mock_tests = sum(s.total_mock or 50 for s in course_subjects)
-                else:
-                    total_mock_tests = 150  # Default for full course
+            # Calculate cost and benefits
+            cost = 0.00  # No cost in dev mode
+            chatbot_unlimited = purchase_type == 'full_bundle'
 
-            # Create purchase record (no payment processing)
+            # Create purchase record
             purchase = ExamCategoryPurchase(
                 user_id=user.id,
                 exam_category_id=course_id,
-                subject_id=subject_id,
-                cost=0.00,  # No cost since payment is bypassed
-                total_mock_tests=total_mock_tests,
+                subject_id=subject_id,  # None for multiple/bundle
+                cost=cost,
+                purchase_type=purchase_type,
+                subjects_included=subjects_to_include if purchase_type != 'single_subject' else None,
+                chatbot_tokens_unlimited=chatbot_unlimited,
+                total_mock_tests=len(subjects_to_include) * 50,  # 50 tests per subject
                 mock_tests_used=0,
                 status='active'
             )
 
             db.session.add(purchase)
+            db.session.flush()  # Get the purchase ID
+
+            # Import and use MockTestService to create test cards
+            from shared.services.mock_test_service import MockTestService
+            card_result = MockTestService.create_test_cards_for_purchase(purchase.id)
+
+            if not card_result['success']:
+                db.session.rollback()
+                return error_response(f"Failed to create test cards: {card_result['error']}", 500)
+
             db.session.commit()
 
             return success_response({
                 'purchase': purchase.to_dict(),
-                'message': 'Access granted! You can now take tests for this content.'
-            }, "Auto-purchase completed successfully")
+                'test_cards_created': card_result['cards_created'],
+                'subjects_count': card_result['subjects_count'],
+                'message': f'Purchase successful! {card_result["cards_created"]} test cards created.'
+            }, "Purchase completed successfully")
 
         except Exception as e:
             db.session.rollback()
             return error_response(f"Failed to create auto-purchase: {str(e)}", 500)
 
-    @app.route('/api/user/available-tests', methods=['GET'])
+    # New Mock Test Card Endpoints
+    @app.route('/api/user/test-cards', methods=['GET'])
     @user_required
-    def api_get_user_available_tests():
-        """Get user's available mock tests by subject"""
+    def api_get_user_test_cards():
+        """Get user's test cards with re-attempt tracking"""
         try:
             user = get_current_user()
             if not user:
                 return error_response("User not found", 404)
 
-            # Get user's purchases
+            subject_id = request.args.get('subject_id', type=int)
+
+            from shared.services.mock_test_service import MockTestService
+            test_cards = MockTestService.get_user_test_cards(user.id, subject_id)
+
+            # Group by subject for better organization
+            cards_by_subject = {}
+            for card in test_cards:
+                subject_key = f"{card['subject_id']}_{card['subject_name']}"
+                if subject_key not in cards_by_subject:
+                    cards_by_subject[subject_key] = {
+                        'subject_id': card['subject_id'],
+                        'subject_name': card['subject_name'],
+                        'course_name': card['course_name'],
+                        'total_cards': 0,
+                        'available_cards': 0,
+                        'completed_cards': 0,
+                        'disabled_cards': 0,
+                        'cards': []
+                    }
+
+                cards_by_subject[subject_key]['cards'].append(card)
+                cards_by_subject[subject_key]['total_cards'] += 1
+
+                if card['status'] == 'available' and card['is_available']:
+                    cards_by_subject[subject_key]['available_cards'] += 1
+                elif card['status'] == 'completed':
+                    cards_by_subject[subject_key]['completed_cards'] += 1
+                elif card['status'] == 'disabled':
+                    cards_by_subject[subject_key]['disabled_cards'] += 1
+
+            return success_response({
+                'test_cards_by_subject': list(cards_by_subject.values()),
+                'total_subjects': len(cards_by_subject)
+            }, "Test cards retrieved successfully")
+
+        except Exception as e:
+            return error_response(f"Failed to get test cards: {str(e)}", 500)
+
+    @app.route('/api/user/test-cards/<int:mock_test_id>/start', methods=['POST'])
+    @user_required
+    def api_start_mock_test(mock_test_id):
+        """Start a test attempt for a specific test card"""
+        try:
+            user = get_current_user()
+            if not user:
+                return error_response("User not found", 404)
+
+            from shared.services.mock_test_service import MockTestService
+            result = MockTestService.start_test_attempt(mock_test_id, user.id)
+
+            if not result['success']:
+                return error_response(result['error'], 400)
+
+            return success_response(result, "Test attempt started successfully")
+
+        except Exception as e:
+            return error_response(f"Failed to start test attempt: {str(e)}", 500)
+
+    @app.route('/api/user/test-sessions/<int:session_id>/questions', methods=['GET'])
+    @user_required
+    def api_get_test_questions(session_id):
+        """Get questions for a test session (generate if first attempt, reuse if re-attempt)"""
+        try:
+            user = get_current_user()
+            if not user:
+                return error_response("User not found", 404)
+
+            session = TestAttemptSession.query.filter_by(
+                id=session_id,
+                user_id=user.id
+            ).first()
+
+            if not session:
+                return error_response("Test session not found", 404)
+
+            mock_test = session.mock_test
+
+            # Check if questions already exist for this mock test
+            existing_questions = ExamCategoryQuestion.query.filter_by(
+                mock_test_id=mock_test.id
+            ).all()
+
+            if existing_questions:
+                # Re-attempt: return existing questions
+                questions = [q.to_dict(include_answer=False) for q in existing_questions]
+                return success_response({
+                    'questions': questions,
+                    'session_id': session.id,
+                    'mock_test_id': mock_test.id,
+                    'attempt_number': session.attempt_number,
+                    'is_re_attempt': True,
+                    'total_questions': len(questions)
+                }, "Existing questions loaded for re-attempt")
+
+            else:
+                # First attempt: generate simple mock questions (fast generation)
+                import random
+
+                # Get subject name for question context
+                subject = ExamCategorySubject.query.get(mock_test.subject_id)
+                if not subject:
+                    return error_response("Subject not found", 404)
+
+                # Generate 50 simple mock questions quickly
+                mock_questions = []
+                for i in range(1, 51):  # Generate 50 questions
+                    correct_option = random.choice(['A', 'B', 'C', 'D'])
+                    mock_questions.append({
+                        'question': f'Mock question {i} for {subject.subject_name}. This is a sample question to test the exam functionality.',
+                        'option_1': f'Option A for question {i} - This could be the correct answer',
+                        'option_2': f'Option B for question {i} - This is another possible answer',
+                        'option_3': f'Option C for question {i} - This might be correct too',
+                        'option_4': f'Option D for question {i} - This is the last option',
+                        'correct_answer': correct_option,
+                        'explanation': f'This is a mock question for testing purposes. The correct answer is {correct_option}.'
+                    })
+
+                # Mock result structure to match expected format
+                result = {
+                    'success': True,
+                    'questions': mock_questions
+                }
+
+                # Save questions to database linked to this mock test
+                questions_data = []
+                for q_data in result['questions']:
+                    question = ExamCategoryQuestion(
+                        exam_category_id=mock_test.course_id,
+                        subject_id=mock_test.subject_id,
+                        mock_test_id=mock_test.id,
+                        question=q_data['question'],
+                        option_1=q_data['option_1'],
+                        option_2=q_data['option_2'],
+                        option_3=q_data['option_3'],
+                        option_4=q_data['option_4'],
+                        correct_answer=q_data['correct_answer'],
+                        explanation=q_data.get('explanation', ''),
+                        is_ai_generated=True,
+                        ai_model_used=result.get('model_used', 'llama3.2:1b'),
+                        difficulty_level='hard',
+                        user_id=user.id,
+                        purchased_id=mock_test.purchase_id
+                    )
+                    db.session.add(question)
+                    questions_data.append(question.to_dict(include_answer=False))
+
+                # Mark questions as generated
+                mock_test.questions_generated = True
+                mock_test.total_questions = len(questions_data)
+
+                db.session.commit()
+
+                return success_response({
+                    'questions': questions_data,
+                    'session_id': session.id,
+                    'mock_test_id': mock_test.id,
+                    'attempt_number': session.attempt_number,
+                    'is_re_attempt': False,
+                    'total_questions': len(questions_data),
+                    'generation_info': {
+                        'model_used': result.get('model_used'),
+                        'sources_used': result.get('sources_used', [])
+                    }
+                }, "Questions generated successfully")
+
+        except Exception as e:
+            db.session.rollback()
+            return error_response(f"Failed to get test questions: {str(e)}", 500)
+
+    @app.route('/api/user/test-sessions/<int:session_id>/submit', methods=['POST'])
+    @user_required
+    def api_submit_test_session(session_id):
+        """Submit answers for a test session"""
+        try:
+            user = get_current_user()
+            if not user:
+                return error_response("User not found", 404)
+
+            data = request.get_json()
+            answers = data.get('answers', [])  # List of {question_id, selected_answer}
+            time_taken = data.get('time_taken', 0)
+
+            session = TestAttemptSession.query.filter_by(
+                id=session_id,
+                user_id=user.id
+            ).first()
+
+            if not session:
+                return error_response("Test session not found", 404)
+
+            if session.status != 'in_progress':
+                return error_response("Test session is not in progress", 400)
+
+            # Get questions for this mock test
+            questions = ExamCategoryQuestion.query.filter_by(
+                mock_test_id=session.mock_test_id
+            ).all()
+
+            question_map = {q.id: q for q in questions}
+
+            # Process answers and calculate score
+            correct_answers = 0
+            wrong_answers = 0
+            unanswered = 0
+
+            for answer_data in answers:
+                question_id = answer_data.get('question_id')
+                selected_answer = answer_data.get('selected_answer')
+
+                if question_id in question_map:
+                    question = question_map[question_id]
+                    is_correct = selected_answer == question.correct_answer
+
+                    if selected_answer:
+                        if is_correct:
+                            correct_answers += 1
+                        else:
+                            wrong_answers += 1
+                    else:
+                        unanswered += 1
+
+                    # Save answer
+                    test_answer = TestAnswer(
+                        session_id=session.id,
+                        question_id=question_id,
+                        selected_answer=selected_answer,
+                        is_correct=is_correct,
+                        time_taken=answer_data.get('time_taken', 0)
+                    )
+                    db.session.add(test_answer)
+
+            # Calculate final score
+            total_questions = len(questions)
+            score = correct_answers
+
+            # Complete the test session using MockTestService
+            from shared.services.mock_test_service import MockTestService
+            result = MockTestService.complete_test_attempt(
+                session.id, score, time_taken, correct_answers, wrong_answers, unanswered
+            )
+
+            if not result['success']:
+                return error_response(result['error'], 500)
+
+            return success_response(result, "Test submitted successfully")
+
+        except Exception as e:
+            db.session.rollback()
+            return error_response(f"Failed to submit test: {str(e)}", 500)
+
+    @app.route('/api/user/test-analytics', methods=['GET'])
+    @user_required
+    def api_get_test_analytics():
+        """Get user's test analytics (based on latest attempts only)"""
+        try:
+            user = get_current_user()
+            if not user:
+                return error_response("User not found", 404)
+
+            subject_id = request.args.get('subject_id', type=int)
+
+            from shared.services.mock_test_service import MockTestService
+            analytics = MockTestService.get_test_analytics(user.id, subject_id)
+
+            return success_response(analytics, "Analytics retrieved successfully")
+
+        except Exception as e:
+            return error_response(f"Failed to get analytics: {str(e)}", 500)
+
+    # Legacy endpoint compatibility (updated to use new system)
+    @app.route('/api/user/available-tests', methods=['GET'])
+    @user_required
+    def api_get_user_available_tests_legacy():
+        """Legacy endpoint - redirects to new test cards system"""
+        try:
+            user = get_current_user()
+            if not user:
+                return error_response("User not found", 404)
+
+            # Get user's purchases for backward compatibility
             purchases = ExamCategoryPurchase.query.filter_by(
                 user_id=user.id,
                 status='active'
@@ -1688,8 +2064,17 @@ def create_app(config_name='development'):
 
             available_tests = []
             for purchase in purchases:
-                if purchase.subject_id:
-                    # Individual subject purchase
+                # Get test cards count for this purchase
+                test_cards_count = MockTestAttempt.query.filter_by(
+                    purchase_id=purchase.id
+                ).count()
+
+                available_cards_count = MockTestAttempt.query.filter_by(
+                    purchase_id=purchase.id,
+                    status='available'
+                ).filter(MockTestAttempt.attempts_used < MockTestAttempt.max_attempts).count()
+
+                if purchase.purchase_type == 'single_subject' and purchase.subject_id:
                     subject = ExamCategorySubject.query.get(purchase.subject_id)
                     if subject:
                         available_tests.append({
@@ -1697,39 +2082,113 @@ def create_app(config_name='development'):
                             'subject_id': purchase.subject_id,
                             'subject_name': subject.subject_name,
                             'course_name': subject.exam_category.course_name,
-                            'total_mock_tests': purchase.total_mock_tests or 0,
-                            'mock_tests_used': purchase.mock_tests_used or 0,
-                            'available_tests': (purchase.total_mock_tests or 0) - (purchase.mock_tests_used or 0),
+                            'total_mock_tests': test_cards_count,
+                            'available_tests': available_cards_count,
                             'purchase_type': 'subject'
                         })
                 else:
-                    # Full course purchase
+                    # Multiple subjects or bundle
                     course = ExamCategory.query.get(purchase.exam_category_id)
                     if course:
-                        # Show course-level usage tracking
-                        # Get subjects with their IDs for full course access
-                        course_subjects = ExamCategorySubject.query.filter_by(exam_category_id=course.id).all()
-                        subjects_data = [{'id': s.id, 'name': s.subject_name} for s in course_subjects]
+                        subjects_included = purchase.get_included_subjects()
+                        subjects_data = []
+
+                        for subj_id in subjects_included:
+                            subj = ExamCategorySubject.query.get(subj_id)
+                            if subj:
+                                subj_cards = MockTestAttempt.query.filter_by(
+                                    purchase_id=purchase.id,
+                                    subject_id=subj_id
+                                ).count()
+
+                                subj_available = MockTestAttempt.query.filter_by(
+                                    purchase_id=purchase.id,
+                                    subject_id=subj_id,
+                                    status='available'
+                                ).filter(MockTestAttempt.attempts_used < MockTestAttempt.max_attempts).count()
+
+                                subjects_data.append({
+                                    'id': subj_id,
+                                    'name': subj.subject_name,
+                                    'total_cards': subj_cards,
+                                    'available_cards': subj_available
+                                })
 
                         available_tests.append({
                             'purchase_id': purchase.id,
                             'subject_id': None,
-                            'subject_name': 'Full Course Access',
+                            'subject_name': f'{purchase.purchase_type.replace("_", " ").title()} Access',
                             'course_name': course.course_name,
-                            'total_mock_tests': purchase.total_mock_tests or 0,
-                            'mock_tests_used': purchase.mock_tests_used or 0,
-                            'available_tests': (purchase.total_mock_tests or 0) - (purchase.mock_tests_used or 0),
-                            'purchase_type': 'full_course',
-                            'subjects': subjects_data
+                            'total_mock_tests': test_cards_count,
+                            'available_tests': available_cards_count,
+                            'purchase_type': purchase.purchase_type,
+                            'subjects': subjects_data,
+                            'chatbot_unlimited': purchase.chatbot_tokens_unlimited
                         })
 
             return success_response({
                 'available_tests': available_tests,
-                'total_purchases': len(purchases)
-            }, "Available tests retrieved successfully")
+                'message': 'Consider using /api/user/test-cards for the new test card system'
+            }, "Available tests retrieved (legacy format)")
 
         except Exception as e:
             return error_response(f"Failed to get available tests: {str(e)}", 500)
+
+    @app.route('/api/dev/test-simple', methods=['GET'])
+    def api_dev_test_simple():
+        """Simple test endpoint"""
+        print(f"🚀 SIMPLE DEV ENDPOINT CALLED: /api/dev/test-simple")
+        import sys
+        sys.stdout.flush()
+        return success_response({"message": "Simple test endpoint working"}, "Test successful")
+
+    @app.route('/api/dev/test-mcq-speed', methods=['POST'])
+    def api_dev_test_mcq_speed():
+        """Development endpoint - Test MCQ generation speed without authentication"""
+        print(f"🚀 DEV ENDPOINT CALLED: /api/dev/test-mcq-speed")
+        import sys
+        sys.stdout.flush()
+
+        if not app.config.get('LOCAL_DEV_MODE', False):
+            print(f"❌ DEV ENDPOINT: LOCAL_DEV_MODE is False")
+            return error_response("This endpoint is only available in development mode", 403)
+
+        try:
+            data = request.get_json() or {}
+            num_questions = data.get('num_questions', 5)
+            subject_name = data.get('subject_name', 'chemistry')
+
+            print(f"🧪 DEV ENDPOINT: Testing MCQ generation for {num_questions} questions, subject: {subject_name}")
+            sys.stdout.flush()
+
+            # Import AI service
+            from shared.services.ai_service import AIService
+            ai_service = AIService()
+
+            import time
+            start_time = time.time()
+
+            # Generate MCQs directly
+            result = ai_service.generate_mcq_from_pdfs(
+                num_questions=num_questions,
+                subject_name=subject_name,
+                difficulty='hard',
+                exam_type=None,
+                subject_directories=None
+            )
+
+            end_time = time.time()
+            generation_time = end_time - start_time
+
+            result['generation_time_seconds'] = round(generation_time, 2)
+            result['speed_target_met'] = generation_time <= 8.0
+
+            print(f"🧪 DEV ENDPOINT: Generation completed in {generation_time:.2f} seconds")
+
+            return success_response(result, f"MCQ generation completed in {generation_time:.2f} seconds")
+
+        except Exception as e:
+            return error_response(f"Failed to test MCQ generation: {str(e)}", 500)
 
     @app.route('/api/dev/available-tests', methods=['GET'])
     def api_dev_get_available_tests():
@@ -1858,6 +2317,10 @@ def create_app(config_name='development'):
             if not test_attempt_id:
                 return error_response("Test attempt ID is required", 400)
 
+            print(f"🚀 MCQ Generation Request - User: {user.id}, Test Attempt: {test_attempt_id}")
+            import sys
+            sys.stdout.flush()
+
             # Verify test attempt belongs to user
             test_attempt = TestAttempt.query.filter_by(
                 id=test_attempt_id,
@@ -1866,6 +2329,48 @@ def create_app(config_name='development'):
 
             if not test_attempt:
                 return error_response("Test attempt not found", 404)
+
+            # Check if questions already exist for this purchase (prevent duplicate generation)
+            # Look for questions associated with this purchase, regardless of when they were created
+            existing_questions = ExamCategoryQuestion.query.filter_by(
+                user_id=user.id,
+                purchased_id=test_attempt.purchase_id
+            ).all()
+
+            print(f"🔍 Checking for existing questions - User: {user.id}, Purchase: {test_attempt.purchase_id}")
+            print(f"🔍 Found {len(existing_questions)} existing questions")
+            sys.stdout.flush()
+
+            if existing_questions:
+                print(f"🔄 Questions already exist for test attempt {test_attempt_id}, returning {len(existing_questions)} existing questions")
+                sys.stdout.flush()
+
+                # Return existing questions in the expected format
+                formatted_questions = []
+                for q in existing_questions:
+                    formatted_questions.append({
+                        'id': q.id,
+                        'question': q.question,
+                        'options': {
+                            'A': q.option_1,
+                            'B': q.option_2,
+                            'C': q.option_3,
+                            'D': q.option_4
+                        },
+                        'correct_answer': q.correct_answer,
+                        'explanation': q.explanation
+                    })
+
+                return success_response({
+                    'test_attempt_id': test_attempt_id,
+                    'questions_generated': len(formatted_questions),
+                    'questions': formatted_questions,
+                    'purchase_type': 'bundle' if not test_attempt.purchase.subject_id else 'subject',
+                    'exam_type': test_attempt.subject.exam_category.course_name,
+                    'subject_directories_used': [],
+                    'sources_used': [],
+                    'ai_model': 'existing'
+                }, f"Returned {len(formatted_questions)} existing questions")
 
             # Get subject and course information
             subject = ExamCategorySubject.query.get(test_attempt.subject_id)
@@ -1907,13 +2412,30 @@ def create_app(config_name='development'):
                     ollama_model=app.config.get('AI_OLLAMA_MODEL', 'llama3.2:1b')
                 )
 
+                # Debug: Log the parameters being passed to AI service
+                print(f"🔍 MCQ Generation Parameters:")
+                print(f"   num_questions: {num_questions}")
+                print(f"   subject_name: {subject.subject_name}")
+                print(f"   exam_type: {exam_type}")
+                print(f"   subject_directories: {subject_directories}")
+                import sys
+                sys.stdout.flush()
+
                 result = ai_service.generate_mcq_from_pdfs(
                     num_questions=num_questions,
                     subject_name=subject.subject_name,
-                    difficulty='medium',
+                    difficulty='hard',  # Always use hard difficulty for real exam challenge
                     exam_type=exam_type,
                     subject_directories=subject_directories
                 )
+
+                print(f"🔍 MCQ Generation Result:")
+                print(f"   success: {result.get('success')}")
+                print(f"   questions_count: {len(result.get('questions', []))}")
+                print(f"   sources_used: {result.get('sources_used', [])}")
+                if not result.get('success'):
+                    print(f"   error: {result.get('error')}")
+                sys.stdout.flush()
 
                 if not result['success']:
                     return error_response(f"Failed to generate questions: {result['error']}", 500)
@@ -1931,7 +2453,7 @@ def create_app(config_name='development'):
                         option_4=question_data.get('options', {}).get('D', ''),
                         correct_answer=question_data.get('correct_answer', 'A'),
                         explanation=question_data.get('explanation', ''),
-                        difficulty_level='medium',
+                        difficulty_level='hard',  # Always hard difficulty
                         is_ai_generated=True,
                         ai_model_used=app.config.get('AI_OLLAMA_MODEL', 'llama3.2:1b'),
                         user_id=user.id,
@@ -2241,212 +2763,106 @@ def create_app(config_name='development'):
         except Exception as e:
             return error_response(f"Failed to get token statistics: {str(e)}", 500)
 
+    # Track MCQ generation requests to prevent duplicates
+    mcq_generation_requests = {}
+
     # AI Question Generation Endpoints
-    @app.route('/api/ai/generate-questions-from-text', methods=['POST'])
-    @admin_required
-    def api_generate_questions_from_text():
-        """Generate MCQs from text content using AI (Admin only)"""
+    @app.route('/api/ai/generate-mcq-from-pdfs', methods=['POST'])
+    @user_required
+    def api_generate_mcq_from_pdfs():
+        """Generate MCQ questions from subject PDFs - restricted to hard difficulty only"""
         try:
-            from shared.services.ai_service import get_ai_service
+            user = get_current_user()
+            if not user:
+                return error_response("User not found", 404)
 
             data = request.get_json()
-            content = data.get('content', '').strip()
-            num_questions = data.get('num_questions', app.config.get('AI_DEFAULT_QUESTIONS_COUNT', 5))
+            num_questions = data.get('num_questions', 5)
             subject_name = data.get('subject_name', '')
-            difficulty = data.get('difficulty', 'medium')
-            exam_category_id = data.get('exam_category_id')
-            subject_id = data.get('subject_id')
+            save_to_database = data.get('save_to_database', False)
 
             # Validation
-            if not content or len(content) < 100:
-                return error_response("Content must be at least 100 characters long", 400)
+            if not subject_name or not subject_name.strip():
+                return error_response("Subject name is required", 400)
 
-            if num_questions < 1 or num_questions > 20:
+            if not isinstance(num_questions, int) or num_questions < 1 or num_questions > 20:
                 return error_response("Number of questions must be between 1 and 20", 400)
 
-            if difficulty not in ['easy', 'medium', 'hard']:
-                return error_response("Difficulty must be 'easy', 'medium', or 'hard'", 400)
+            # Duplicate request protection
+            request_key = f"{user.id}:{subject_name}:{num_questions}:{save_to_database}"
+            current_time = time.time()
 
-            # Validate exam category and subject if provided
-            if exam_category_id:
-                exam_category = ExamCategory.query.get(exam_category_id)
-                if not exam_category:
-                    return error_response("Exam category not found", 404)
+            # Check if same request was made in last 30 seconds
+            if request_key in mcq_generation_requests:
+                last_request_time = mcq_generation_requests[request_key]
+                if current_time - last_request_time < 30:
+                    return error_response("Duplicate request detected. Please wait 30 seconds before generating MCQs again.", 429)
 
-            if subject_id:
-                subject = ExamCategorySubject.query.get(subject_id)
-                if not subject:
-                    return error_response("Subject not found", 404)
-                if not subject_name:
-                    subject_name = subject.subject_name
+            # Record this request
+            mcq_generation_requests[request_key] = current_time
 
-            # Generate questions using AI service
-            ai_service = get_ai_service(
-                pdf_folder_path=app.config.get('AI_PDF_FOLDER'),
-                ollama_model=app.config.get('AI_OLLAMA_MODEL', 'llama3.2:1b')
-            )
+            # Clean up old requests (older than 5 minutes)
+            cutoff_time = current_time - 300
+            mcq_generation_requests = {k: v for k, v in mcq_generation_requests.items() if v > cutoff_time}
 
-            result = ai_service.generate_mcq_from_text(
-                content=content,
-                num_questions=num_questions,
-                subject_name=subject_name,
-                difficulty=difficulty
-            )
+            print(f"🚀 MCQ Generation Request - User: {user.id}, Subject: {subject_name}, Questions: {num_questions}")
+            import sys
+            sys.stdout.flush()
 
-            if not result['success']:
-                return error_response(result['error'], 500)
+            # Import AI service
+            from services.ai_service import AIService
+            ai_service = AIService()
 
-            # Optionally save questions to database
-            save_to_db = data.get('save_to_database', False)
-            saved_questions = []
-
-            if save_to_db and exam_category_id and subject_id:
-                user = get_current_user()
-                for q_data in result['questions']:
-                    question = ExamCategoryQuestion(
-                        exam_category_id=exam_category_id,
-                        subject_id=subject_id,
-                        question=q_data['question'],
-                        option_1=q_data['option_a'],
-                        option_2=q_data['option_b'],
-                        option_3=q_data['option_c'],
-                        option_4=q_data['option_d'],
-                        correct_answer=q_data['option_a'] if q_data['correct_option'] == 'A' else
-                                     q_data['option_b'] if q_data['correct_option'] == 'B' else
-                                     q_data['option_c'] if q_data['correct_option'] == 'C' else
-                                     q_data['option_d'],
-                        explanation=q_data.get('explanation', ''),
-                        user_id=user.id,
-                        is_ai_generated=True,
-                        ai_model_used=result.get('model_used'),
-                        difficulty_level=difficulty,
-                        source_content=content[:1000] if len(content) > 1000 else content  # Store first 1000 chars
-                    )
-                    db.session.add(question)
-                    saved_questions.append(question)
-
-                db.session.commit()
-
-            response_data = {
-                'questions': result['questions'],
-                'total_generated': len(result['questions']),
-                'model_used': result.get('model_used'),
-                'subject_name': subject_name,
-                'difficulty': difficulty
-            }
-
-            if saved_questions:
-                response_data['saved_to_database'] = True
-                response_data['saved_count'] = len(saved_questions)
-                response_data['saved_question_ids'] = [q.id for q in saved_questions]
-
-            return success_response(response_data, "Questions generated successfully")
-
-        except Exception as e:
-            db.session.rollback()
-            return error_response(f"Failed to generate questions: {str(e)}", 500)
-
-    @app.route('/api/ai/generate-questions-from-pdfs', methods=['POST'])
-    @admin_required
-    def api_generate_questions_from_pdfs():
-        """Generate MCQs from PDF documents using AI (Admin only)"""
-        try:
-            from shared.services.ai_service import get_ai_service
-
-            data = request.get_json() or {}
-            num_questions = data.get('num_questions', app.config.get('AI_DEFAULT_QUESTIONS_COUNT', 5))
-            subject_name = data.get('subject_name', '')
-            difficulty = data.get('difficulty', 'medium')
-            exam_category_id = data.get('exam_category_id')
-            subject_id = data.get('subject_id')
-
-            # Validation
-            if num_questions < 1 or num_questions > 20:
-                return error_response("Number of questions must be between 1 and 20", 400)
-
-            if difficulty not in ['easy', 'medium', 'hard']:
-                return error_response("Difficulty must be 'easy', 'medium', or 'hard'", 400)
-
-            # Validate exam category and subject if provided
-            if exam_category_id:
-                exam_category = ExamCategory.query.get(exam_category_id)
-                if not exam_category:
-                    return error_response("Exam category not found", 404)
-
-            if subject_id:
-                subject = ExamCategorySubject.query.get(subject_id)
-                if not subject:
-                    return error_response("Subject not found", 404)
-                if not subject_name:
-                    subject_name = subject.subject_name
-
-            # Generate questions using AI service
-            ai_service = get_ai_service(
-                pdf_folder_path=app.config.get('AI_PDF_FOLDER'),
-                ollama_model=app.config.get('AI_OLLAMA_MODEL', 'llama3.2:1b')
-            )
-
+            # Generate MCQs from PDFs - always hard difficulty
             result = ai_service.generate_mcq_from_pdfs(
                 num_questions=num_questions,
-                subject_name=subject_name,
-                difficulty=difficulty
+                subject_name=subject_name.strip(),
+                difficulty='hard',  # Always hard difficulty
+                exam_type='mock'
             )
 
-            if not result['success']:
-                return error_response(result['error'], 500)
+            if not result.get('success'):
+                return error_response(result.get('error', 'Failed to generate questions'), 500)
 
-            # Optionally save questions to database
-            save_to_db = data.get('save_to_database', False)
-            saved_questions = []
+            questions = result.get('questions', [])
 
-            if save_to_db and exam_category_id and subject_id:
-                user = get_current_user()
-                sources_text = ', '.join(result.get('sources_used', []))
-                for q_data in result['questions']:
-                    question = ExamCategoryQuestion(
-                        exam_category_id=exam_category_id,
-                        subject_id=subject_id,
-                        question=q_data['question'],
-                        option_1=q_data['option_a'],
-                        option_2=q_data['option_b'],
-                        option_3=q_data['option_c'],
-                        option_4=q_data['option_d'],
-                        correct_answer=q_data['option_a'] if q_data['correct_option'] == 'A' else
-                                     q_data['option_b'] if q_data['correct_option'] == 'B' else
-                                     q_data['option_c'] if q_data['correct_option'] == 'C' else
-                                     q_data['option_d'],
-                        explanation=q_data.get('explanation', ''),
-                        user_id=user.id,
-                        is_ai_generated=True,
-                        ai_model_used=result.get('model_used'),
-                        difficulty_level=difficulty,
-                        source_content=f"Generated from PDFs: {sources_text}"
-                    )
-                    db.session.add(question)
-                    saved_questions.append(question)
+            # Optionally save to database
+            if save_to_database and questions:
+                try:
+                    for q_data in questions:
+                        question = ExamCategoryQuestion(
+                            user_id=user.id,
+                            question=q_data.get('question', ''),
+                            option_1=q_data.get('options', {}).get('A', ''),
+                            option_2=q_data.get('options', {}).get('B', ''),
+                            option_3=q_data.get('options', {}).get('C', ''),
+                            option_4=q_data.get('options', {}).get('D', ''),
+                            correct_answer=q_data.get('correct_answer', 'A'),
+                            difficulty='hard',
+                            subject=subject_name.strip(),
+                            explanation=q_data.get('explanation', '')
+                        )
+                        db.session.add(question)
 
-                db.session.commit()
+                    db.session.commit()
+                    print(f"✅ Saved {len(questions)} questions to database")
+                except Exception as e:
+                    db.session.rollback()
+                    print(f"⚠️ Failed to save questions to database: {str(e)}")
 
-            response_data = {
-                'questions': result['questions'],
-                'total_generated': len(result['questions']),
+            return success_response({
+                'questions': questions,
+                'total_generated': len(questions),
+                'subject_name': subject_name.strip(),
+                'difficulty': 'hard',
+                'saved_to_database': save_to_database,
                 'sources_used': result.get('sources_used', []),
-                'total_pdfs_processed': result.get('total_pdfs_processed', 0),
-                'model_used': result.get('model_used'),
-                'subject_name': subject_name,
-                'difficulty': difficulty
-            }
-
-            if saved_questions:
-                response_data['saved_to_database'] = True
-                response_data['saved_count'] = len(saved_questions)
-                response_data['saved_question_ids'] = [q.id for q in saved_questions]
-
-            return success_response(response_data, "Questions generated from PDFs successfully")
+                'model_used': result.get('model_used', 'llama3.2:1b')
+            }, f"Generated {len(questions)} hard MCQ questions from {subject_name} PDFs")
 
         except Exception as e:
             db.session.rollback()
-            return error_response(f"Failed to generate questions from PDFs: {str(e)}", 500)
+            return error_response(f"Failed to generate MCQ questions: {str(e)}", 500)
 
     @app.route('/api/ai/rag/chat', methods=['POST'])
     @user_required
@@ -2532,10 +2948,21 @@ def create_app(config_name='development'):
             db.session.rollback()
             return error_response(f"Failed to process RAG chat: {str(e)}", 500)
 
+    # Cache for AI service status (5 minute cache)
+    ai_status_cache = {'data': None, 'timestamp': 0}
+
     @app.route('/api/ai/rag/status', methods=['GET'])
     def api_rag_status():
-        """Check RAG system status and dependencies (Public endpoint)"""
+        """Check RAG system status and dependencies (Public endpoint) - Cached for 5 minutes"""
         try:
+            current_time = time.time()
+            cache_duration = 300  # 5 minutes
+
+            # Check if we have valid cached data
+            if (ai_status_cache['data'] is not None and
+                current_time - ai_status_cache['timestamp'] < cache_duration):
+                return success_response(ai_status_cache['data'], "RAG status retrieved successfully (cached)")
+
             from shared.services.ai_service import get_ai_service
 
             ai_service = get_ai_service(
@@ -2544,6 +2971,10 @@ def create_app(config_name='development'):
             )
 
             status = ai_service.get_status()
+
+            # Update cache
+            ai_status_cache['data'] = status
+            ai_status_cache['timestamp'] = current_time
 
             return success_response(status, "RAG status retrieved successfully")
 
@@ -3179,18 +3610,40 @@ def create_app(config_name='development'):
             db.session.rollback()
             return error_response(f"Google OAuth callback failed: {str(e)}", 500)
 
+    # Track processed authorization codes to prevent duplicate processing
+    processed_auth_codes = set()
+    # Add session tracking to prevent duplicate calls per session
+    session_oauth_attempts = {}
+
     @app.route('/api/auth/google/verify', methods=['POST'])
     def api_google_verify():
-        """Verify Google OAuth authorization code from frontend"""
+        """Verify Google OAuth authorization code from frontend - called once per session"""
         try:
             if not google_oauth:
                 return error_response("Google OAuth not configured", 503)
 
             data = request.get_json()
             authorization_code = data.get('code')
+            session_id = data.get('session_id')  # Frontend should provide session identifier
 
             if not authorization_code:
                 return error_response("Authorization code not provided", 400)
+
+            # Check if this authorization code has already been processed
+            code_hash = authorization_code[:20]  # Use first 20 chars as identifier
+            if code_hash in processed_auth_codes:
+                print(f"⚠️ Authorization code already processed: {code_hash}...")
+                return error_response("Authorization code has already been used", 400)
+
+            # Check if this session has already attempted OAuth (prevent duplicate calls)
+            if session_id and session_id in session_oauth_attempts:
+                print(f"⚠️ OAuth already attempted for session: {session_id}")
+                return error_response("OAuth already attempted for this session", 400)
+
+            # Mark this code as being processed and track session
+            processed_auth_codes.add(code_hash)
+            if session_id:
+                session_oauth_attempts[session_id] = True
 
             print(f"🔄 Processing Google OAuth verification...")
             print(f"🔧 Authorization code received: {authorization_code[:20]}...")
@@ -3200,6 +3653,10 @@ def create_app(config_name='development'):
             success, user_info = google_oauth.exchange_code_for_token(authorization_code)
             if not success:
                 print(f"❌ Google OAuth exchange failed: {user_info}")
+                # Remove from processed set and session tracking on failure so it can be retried
+                processed_auth_codes.discard(code_hash)
+                if session_id:
+                    session_oauth_attempts.pop(session_id, None)
                 return error_response(f"Failed to get user info from Google: {user_info}", 400)
 
             # Extract user information
@@ -3277,7 +3734,18 @@ def create_app(config_name='development'):
 
         except Exception as e:
             db.session.rollback()
+            # Remove from processed set and session tracking on error so it can be retried
+            if 'authorization_code' in locals():
+                code_hash = authorization_code[:20]
+                processed_auth_codes.discard(code_hash)
+            if 'session_id' in locals() and session_id:
+                session_oauth_attempts.pop(session_id, None)
             return error_response(f"Google OAuth verification failed: {str(e)}", 500)
+        finally:
+            # Clean up old processed codes (keep only last 100 to prevent memory issues)
+            if len(processed_auth_codes) > 100:
+                # Remove oldest entries (this is a simple cleanup, in production you'd want timestamp-based cleanup)
+                processed_auth_codes.clear()
 
     @app.route('/api/debug/google-oauth', methods=['GET'])
     def debug_google_oauth():
@@ -3383,7 +3851,7 @@ def create_app(config_name='development'):
             return error_response(f"Failed to get users: {str(e)}", 500)
     @app.route('/users/<int:user_id>/status', methods=['PUT'])
     @jwt_required()
-    def update_user_status():
+    def update_user_status(user_id):
         try:
             current_user_id = get_jwt_identity()
             current_user = User.query.get(int(current_user_id))
@@ -3840,8 +4308,7 @@ if __name__ == '__main__':
     print("   🤖 AI Chatbot & Question Generation:")
     print("     • POST /api/ai/chat - Ask educational question")
     print("     • POST /api/ai/rag/chat - RAG-based chat with PDF documents")
-    print("     • POST /api/ai/generate-questions-from-text - Generate MCQs from text (admin)")
-    print("     • POST /api/ai/generate-questions-from-pdfs - Generate MCQs from PDFs (admin)")
+    print("     • NOTE: MCQ generation is now automatic during test taking from PDF textbooks only")
     print("     • GET /api/ai/rag/status - Check RAG system status")
     print("     • POST /api/ai/rag/reload - Reload RAG index (admin)")
     print("     • GET /api/admin/chat/tokens - Get all users' token stats (admin)")
@@ -3868,9 +4335,9 @@ if __name__ == '__main__':
     # Create the Flask application instance
     app = create_app()
 
-    # Create database tables
-    with app.app_context():
-        db.create_all()
+    # Create database tables (commented out - tables already created)
+    # with app.app_context():
+    #     db.create_all()
 
     app.run(
         host='0.0.0.0',

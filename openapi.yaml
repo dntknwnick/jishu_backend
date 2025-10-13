@@ -1,0 +1,1771 @@
+openapi: 3.0.3
+info:
+  title: Jishu Backend API
+  description: |
+    Complete Educational Platform API for exam preparation with AI-powered features.
+    
+    ## Features
+    - 🔐 Dual Authentication (Email+OTP & Google OAuth)
+    - 📚 Course & Subject Management
+    - 🤖 AI Chatbot with RAG (Retrieval Augmented Generation)
+    - 📝 Automated MCQ Generation from PDFs
+    - 💬 Community Blog System
+    - 🛒 Purchase & Test Management
+    - 👑 Admin Management Interface
+    
+    ## Authentication
+    The API uses JWT tokens for authentication. Include the token in the Authorization header:
+    ```
+    Authorization: Bearer <your_jwt_token>
+    ```
+    
+    ## Base URL
+    ```
+    http://localhost:5000
+    ```
+  version: 1.0.0
+  contact:
+    name: Jishu Backend API
+    url: http://localhost:5000
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:5000
+    description: Development server
+
+tags:
+  - name: Health
+    description: System health and configuration
+  - name: Authentication
+    description: User authentication and profile management
+  - name: Courses
+    description: Course and subject management
+  - name: Community
+    description: Blog posts and community features
+  - name: AI Services
+    description: AI chatbot and MCQ generation
+  - name: Tests
+    description: Test management and question generation
+  - name: Purchases
+    description: Purchase and subscription management
+  - name: Admin
+    description: Administrative functions (admin only)
+  - name: Development
+    description: Development and testing endpoints
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token obtained from login or registration
+
+  schemas:
+    ApiResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          description: Whether the request was successful
+        message:
+          type: string
+          description: Human-readable message
+        data:
+          type: object
+          description: Response data (varies by endpoint)
+        error:
+          type: string
+          description: Error message (only present when success is false)
+      required:
+        - success
+        - message
+
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: Unique user identifier
+        email_id:
+          type: string
+          format: email
+          description: User's email address
+        name:
+          type: string
+          description: User's full name
+        mobile_no:
+          type: string
+          pattern: '^[0-9]{10}$'
+          description: 10-digit mobile number
+        is_premium:
+          type: boolean
+          description: Whether user has premium access
+        is_admin:
+          type: boolean
+          description: Whether user has admin privileges
+        color_theme:
+          type: string
+          enum: [light, dark]
+          description: User's preferred theme
+        status:
+          type: string
+          enum: [active, inactive, suspended]
+          description: User account status
+        created_at:
+          type: string
+          format: date-time
+          description: Account creation timestamp
+        auth_provider:
+          type: string
+          enum: [manual, google]
+          description: Authentication method used
+        source:
+          type: string
+          description: Registration source
+
+    Course:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: Unique course identifier
+        course_name:
+          type: string
+          description: Course name
+        description:
+          type: string
+          description: Course description
+        amount:
+          type: number
+          format: float
+          description: Course price
+        offer_amount:
+          type: number
+          format: float
+          description: Discounted price
+        max_tokens:
+          type: integer
+          description: AI chat token limit for course
+        created_at:
+          type: string
+          format: date-time
+          description: Course creation timestamp
+        subjects:
+          type: array
+          items:
+            $ref: '#/components/schemas/Subject'
+          description: List of subjects in the course
+
+    Subject:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: Unique subject identifier
+        subject_name:
+          type: string
+          description: Subject name
+        exam_category_id:
+          type: integer
+          description: Parent course ID
+        amount:
+          type: number
+          format: float
+          description: Subject price
+        offer_amount:
+          type: number
+          format: float
+          description: Discounted price
+        max_tokens:
+          type: integer
+          description: AI chat token limit
+        total_mock:
+          type: integer
+          description: Number of mock tests available
+        is_deleted:
+          type: boolean
+          description: Soft delete flag
+        is_bundle:
+          type: boolean
+          description: Whether this is a bundle package
+        created_at:
+          type: string
+          format: date-time
+          description: Subject creation timestamp
+
+    BlogPost:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: Unique post identifier
+        title:
+          type: string
+          description: Post title
+        content:
+          type: string
+          description: Post content
+        author_id:
+          type: integer
+          description: Author's user ID
+        author_name:
+          type: string
+          description: Author's name
+        tags:
+          type: array
+          items:
+            type: string
+          description: Post tags
+        likes_count:
+          type: integer
+          description: Number of likes
+        comments_count:
+          type: integer
+          description: Number of comments
+        created_at:
+          type: string
+          format: date-time
+          description: Post creation timestamp
+        is_liked:
+          type: boolean
+          description: Whether current user liked this post
+
+    MCQQuestion:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: Question ID
+        question:
+          type: string
+          description: Question text
+        options:
+          type: object
+          properties:
+            A:
+              type: string
+            B:
+              type: string
+            C:
+              type: string
+            D:
+              type: string
+          description: Multiple choice options
+        correct_answer:
+          type: string
+          enum: [A, B, C, D]
+          description: Correct answer option
+        explanation:
+          type: string
+          description: Answer explanation
+        difficulty:
+          type: string
+          enum: [easy, medium, hard]
+          description: Question difficulty level
+
+    Purchase:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: Purchase ID
+        user_id:
+          type: integer
+          description: Buyer's user ID
+        exam_category_id:
+          type: integer
+          description: Course ID
+        subject_id:
+          type: integer
+          nullable: true
+          description: Subject ID (null for full course)
+        cost:
+          type: number
+          format: float
+          description: Purchase amount
+        total_mock_tests:
+          type: integer
+          description: Total mock tests available
+        mock_tests_used:
+          type: integer
+          description: Mock tests already used
+        status:
+          type: string
+          enum: [active, expired, cancelled]
+          description: Purchase status
+        created_at:
+          type: string
+          format: date-time
+          description: Purchase timestamp
+
+    Error:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+          description: Error message
+        error:
+          type: string
+          description: Detailed error information
+      required:
+        - success
+        - message
+
+paths:
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Health check
+      description: Check if the API is running and get basic system information
+      responses:
+        '200':
+          description: API is healthy
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          version:
+                            type: string
+                            example: "1.0.0"
+                          architecture:
+                            type: string
+                            example: "monolithic"
+              example:
+                success: true
+                message: "Jishu Backend API is running"
+                data:
+                  version: "1.0.0"
+                  architecture: "monolithic"
+
+  /api/config/dev-settings:
+    get:
+      tags:
+        - Development
+      summary: Get development settings
+      description: Retrieve current development configuration (debugging purposes)
+      responses:
+        '200':
+          description: Development settings retrieved
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          LOCAL_DEV_MODE:
+                            type: boolean
+                          BYPASS_PURCHASE_VALIDATION:
+                            type: boolean
+                          DEBUG:
+                            type: boolean
+                          environment:
+                            type: string
+                            enum: [development, production]
+
+  # Authentication Endpoints
+  /api/auth/otp/request:
+    post:
+      tags:
+        - Authentication
+      summary: Request OTP for email verification
+      description: Send OTP to email for registration or login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  format: email
+                  description: Email address to send OTP to
+              required:
+                - email
+            example:
+              email: "user@example.com"
+      responses:
+        '200':
+          description: OTP sent successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+              example:
+                success: true
+                message: "OTP sent successfully"
+                data:
+                  email: "user@example.com"
+                  otp_sent: true
+        '400':
+          description: Invalid email format
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                success: false
+                message: "Invalid email format"
+
+  /api/auth/register:
+    post:
+      tags:
+        - Authentication
+      summary: Register new user
+      description: Register a new user with email, OTP, password, name, and mobile number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  format: email
+                  description: User's email address
+                otp:
+                  type: string
+                  pattern: '^[0-9]{6}$'
+                  description: 6-digit OTP received via email
+                password:
+                  type: string
+                  minLength: 8
+                  description: User's password (min 8 characters)
+                name:
+                  type: string
+                  minLength: 2
+                  description: User's full name
+                mobile_no:
+                  type: string
+                  pattern: '^[0-9]{10}$'
+                  description: 10-digit mobile number
+              required:
+                - email
+                - otp
+                - password
+                - name
+                - mobile_no
+            example:
+              email: "user@example.com"
+              otp: "123456"
+              password: "securepassword123"
+              name: "John Doe"
+              mobile_no: "9876543210"
+      responses:
+        '201':
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          user:
+                            $ref: '#/components/schemas/User'
+                          access_token:
+                            type: string
+                            description: JWT access token
+                          refresh_token:
+                            type: string
+                            description: JWT refresh token
+        '400':
+          description: Validation error or invalid OTP
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/auth/login:
+    post:
+      tags:
+        - Authentication
+      summary: Login user
+      description: Login with email and OTP
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  format: email
+                  description: User's email address
+                otp:
+                  type: string
+                  pattern: '^[0-9]{6}$'
+                  description: 6-digit OTP received via email
+              required:
+                - email
+                - otp
+            example:
+              email: "user@example.com"
+              otp: "123456"
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          user:
+                            $ref: '#/components/schemas/User'
+                          access_token:
+                            type: string
+                            description: JWT access token
+                          refresh_token:
+                            type: string
+                            description: JWT refresh token
+        '401':
+          description: Invalid credentials or OTP
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/auth/logout:
+    post:
+      tags:
+        - Authentication
+      summary: Logout user
+      description: Logout and invalidate refresh token
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Logout successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+              example:
+                success: true
+                message: "Logout successful"
+                data:
+                  message: "Logged out successfully"
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/auth/profile:
+    get:
+      tags:
+        - Authentication
+      summary: Get user profile
+      description: Retrieve current user's profile information
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Profile retrieved successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          user:
+                            $ref: '#/components/schemas/User'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/auth/profile/edit:
+    put:
+      tags:
+        - Authentication
+      summary: Update user profile
+      description: Update current user's profile information
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  minLength: 2
+                  description: User's full name
+                mobile_no:
+                  type: string
+                  pattern: '^[0-9]{10}$'
+                  description: 10-digit mobile number
+                color_theme:
+                  type: string
+                  enum: [light, dark]
+                  description: User's preferred theme
+            example:
+              name: "John Doe Updated"
+              mobile_no: "9876543210"
+              color_theme: "dark"
+      responses:
+        '200':
+          description: Profile updated successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          user:
+                            $ref: '#/components/schemas/User'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # Course Management Endpoints
+  /api/courses:
+    get:
+      tags:
+        - Courses
+      summary: List all courses
+      description: Get a paginated list of all available courses (public endpoint)
+      parameters:
+        - name: page
+          in: query
+          description: Page number for pagination
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: per_page
+          in: query
+          description: Number of items per page
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 10
+        - name: search
+          in: query
+          description: Search term for course names
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Courses retrieved successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          courses:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/Course'
+                          pagination:
+                            type: object
+                            properties:
+                              page:
+                                type: integer
+                              pages:
+                                type: integer
+                              per_page:
+                                type: integer
+                              total:
+                                type: integer
+                              has_next:
+                                type: boolean
+                              has_prev:
+                                type: boolean
+
+  /api/courses/{id}:
+    get:
+      tags:
+        - Courses
+      summary: Get course by ID
+      description: Retrieve a specific course with optional subjects
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Course ID
+          schema:
+            type: integer
+        - name: include_subjects
+          in: query
+          description: Whether to include subjects in response
+          schema:
+            type: boolean
+            default: true
+      responses:
+        '200':
+          description: Course retrieved successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          course:
+                            $ref: '#/components/schemas/Course'
+        '404':
+          description: Course not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/subjects:
+    get:
+      tags:
+        - Courses
+      summary: Get subjects for a course
+      description: Retrieve subjects for a specific course
+      parameters:
+        - name: course_id
+          in: query
+          required: true
+          description: Course ID to get subjects for
+          schema:
+            type: integer
+        - name: include_deleted
+          in: query
+          description: Whether to include soft-deleted subjects
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: Subjects retrieved successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          subjects:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/Subject'
+                          course:
+                            $ref: '#/components/schemas/Course'
+
+  /api/bundles:
+    get:
+      tags:
+        - Courses
+      summary: Get bundle packages for a course
+      description: Retrieve bundle packages for a specific course
+      parameters:
+        - name: course_id
+          in: query
+          required: true
+          description: Course ID to get bundles for
+          schema:
+            type: integer
+        - name: include_deleted
+          in: query
+          description: Whether to include soft-deleted bundles
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: Bundles retrieved successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          bundles:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/Subject'
+                          course:
+                            $ref: '#/components/schemas/Course'
+
+  # AI Services Endpoints
+  /api/ai/chat:
+    post:
+      tags:
+        - AI Services
+      summary: AI chatbot conversation
+      description: Send a message to the AI chatbot for educational assistance
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                message:
+                  type: string
+                  minLength: 1
+                  description: User's question or message
+                session_id:
+                  type: string
+                  description: Session ID for conversation tracking
+                is_academic:
+                  type: boolean
+                  default: true
+                  description: Whether this is an academic question
+              required:
+                - message
+            example:
+              message: "Explain Newton's laws of motion"
+              session_id: "session_123456"
+              is_academic: true
+      responses:
+        '200':
+          description: AI response generated successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          response:
+                            type: string
+                            description: AI-generated response
+                          session_id:
+                            type: string
+                            description: Session ID
+                          token_info:
+                            type: object
+                            properties:
+                              tokens_used_today:
+                                type: integer
+                              daily_limit:
+                                type: integer
+                              remaining_tokens:
+                                type: integer
+        '429':
+          description: Daily token limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/ai/token-status:
+    get:
+      tags:
+        - AI Services
+      summary: Get user's token status
+      description: Retrieve current token usage and limits for the user
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Token status retrieved successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          tokens_used_today:
+                            type: integer
+                            description: Tokens used today
+                          daily_limit:
+                            type: integer
+                            description: Daily token limit
+                          remaining_tokens:
+                            type: integer
+                            description: Remaining tokens for today
+                          is_unlimited:
+                            type: boolean
+                            description: Whether user has unlimited tokens
+
+  /api/ai/generate-mcq-from-pdfs:
+    post:
+      tags:
+        - AI Services
+      summary: Generate MCQ questions from PDFs
+      description: Generate multiple choice questions from PDF documents (hard difficulty only)
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                num_questions:
+                  type: integer
+                  minimum: 1
+                  maximum: 20
+                  description: Number of questions to generate
+                subject_name:
+                  type: string
+                  minLength: 1
+                  description: Subject name for question generation
+                difficulty:
+                  type: string
+                  enum: [hard]
+                  default: hard
+                  description: Question difficulty (always hard)
+                save_to_database:
+                  type: boolean
+                  default: false
+                  description: Whether to save questions to database
+              required:
+                - num_questions
+                - subject_name
+            example:
+              num_questions: 5
+              subject_name: "Physics"
+              difficulty: "hard"
+              save_to_database: false
+      responses:
+        '200':
+          description: MCQ questions generated successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          questions:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/MCQQuestion'
+                          total_generated:
+                            type: integer
+                          subject_name:
+                            type: string
+                          difficulty:
+                            type: string
+                          saved_to_database:
+                            type: boolean
+                          sources_used:
+                            type: array
+                            items:
+                              type: string
+                          model_used:
+                            type: string
+        '429':
+          description: Duplicate request detected
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                success: false
+                message: "Duplicate request detected. Please wait 30 seconds before generating MCQs again."
+
+  /api/ai/rag/status:
+    get:
+      tags:
+        - AI Services
+      summary: Get RAG system status
+      description: Check RAG (Retrieval Augmented Generation) system status and dependencies
+      responses:
+        '200':
+          description: RAG status retrieved successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          status:
+                            type: string
+                            enum: [running, error]
+                          dependencies:
+                            type: object
+                            description: Status of required dependencies
+                          pdf_folder:
+                            type: string
+                            description: PDF folder path
+                          pdfs_loaded:
+                            type: integer
+                            description: Number of PDFs loaded
+                          sources:
+                            type: array
+                            items:
+                              type: string
+                            description: List of PDF sources
+                          ollama_model:
+                            type: string
+                            description: Ollama model being used
+                          embeddings_available:
+                            type: boolean
+                            description: Whether embeddings are available
+
+  # Community Endpoints
+  /api/community/posts:
+    get:
+      tags:
+        - Community
+      summary: Get all blog posts
+      description: Retrieve a list of all community blog posts
+      parameters:
+        - name: page
+          in: query
+          description: Page number for pagination
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: per_page
+          in: query
+          description: Number of posts per page
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 10
+      responses:
+        '200':
+          description: Posts retrieved successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          posts:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/BlogPost'
+                          pagination:
+                            type: object
+                            properties:
+                              page:
+                                type: integer
+                              pages:
+                                type: integer
+                              per_page:
+                                type: integer
+                              total:
+                                type: integer
+
+    post:
+      tags:
+        - Community
+      summary: Create a new blog post
+      description: Create a new community blog post
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                  minLength: 5
+                  maxLength: 200
+                  description: Post title
+                content:
+                  type: string
+                  minLength: 10
+                  description: Post content
+                tags:
+                  type: array
+                  items:
+                    type: string
+                  maxItems: 5
+                  description: Post tags (max 5)
+              required:
+                - title
+                - content
+            example:
+              title: "Understanding Quantum Physics"
+              content: "This post explains the basics of quantum physics..."
+              tags: ["physics", "quantum", "education"]
+      responses:
+        '201':
+          description: Post created successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          post:
+                            $ref: '#/components/schemas/BlogPost'
+
+  /api/community/posts/{id}/like:
+    post:
+      tags:
+        - Community
+      summary: Like/unlike a blog post
+      description: Toggle like status for a blog post
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Post ID
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Like status updated
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          liked:
+                            type: boolean
+                            description: New like status
+                          likes_count:
+                            type: integer
+                            description: Total likes count
+
+  /api/community/posts/{id}/comment:
+    post:
+      tags:
+        - Community
+      summary: Add comment to a blog post
+      description: Add a comment to a specific blog post
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Post ID
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                content:
+                  type: string
+                  minLength: 1
+                  maxLength: 1000
+                  description: Comment content
+              required:
+                - content
+            example:
+              content: "Great explanation! Thanks for sharing."
+      responses:
+        '201':
+          description: Comment added successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          comment:
+                            type: object
+                            properties:
+                              id:
+                                type: integer
+                              content:
+                                type: string
+                              author_name:
+                                type: string
+                              created_at:
+                                type: string
+                                format: date-time
+
+  # Purchase Endpoints
+  /api/purchases:
+    post:
+      tags:
+        - Purchases
+      summary: Create purchase
+      description: Create a purchase for a course or subject (local development - instant access)
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                courseId:
+                  type: string
+                  description: Course ID to purchase
+                subjectId:
+                  type: string
+                  description: Subject ID to purchase (optional for full course)
+                paymentMethod:
+                  type: string
+                  enum: [local_dev]
+                  default: local_dev
+                  description: Payment method (local development only)
+              required:
+                - courseId
+            example:
+              courseId: "1"
+              subjectId: "5"
+              paymentMethod: "local_dev"
+      responses:
+        '201':
+          description: Purchase created successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          purchase:
+                            $ref: '#/components/schemas/Purchase'
+                          instant_access:
+                            type: boolean
+                            description: Whether access is granted immediately
+
+  # Admin Endpoints
+  /api/admin/courses:
+    get:
+      tags:
+        - Admin
+      summary: Get all courses (Admin)
+      description: Get all courses for admin management with higher pagination limits
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          description: Page number for pagination
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: per_page
+          in: query
+          description: Number of courses per page
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+      responses:
+        '200':
+          description: Courses retrieved successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          courses:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/Course'
+                          pagination:
+                            type: object
+                            properties:
+                              page:
+                                type: integer
+                              pages:
+                                type: integer
+                              per_page:
+                                type: integer
+                              total:
+                                type: integer
+        '403':
+          description: Admin access required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    post:
+      tags:
+        - Admin
+      summary: Create new course (Admin)
+      description: Create a new course (admin only)
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                course_name:
+                  type: string
+                  minLength: 2
+                  description: Course name
+                description:
+                  type: string
+                  description: Course description
+                amount:
+                  type: number
+                  format: float
+                  minimum: 0
+                  description: Course price
+                offer_amount:
+                  type: number
+                  format: float
+                  minimum: 0
+                  description: Discounted price
+                max_tokens:
+                  type: integer
+                  minimum: 0
+                  description: AI chat token limit
+              required:
+                - course_name
+                - description
+            example:
+              course_name: "Advanced Physics"
+              description: "Comprehensive physics course for competitive exams"
+              amount: 999.0
+              offer_amount: 799.0
+              max_tokens: 1000
+      responses:
+        '201':
+          description: Course created successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          course:
+                            $ref: '#/components/schemas/Course'
+
+  /api/admin/courses/{id}:
+    put:
+      tags:
+        - Admin
+      summary: Update course (Admin)
+      description: Update an existing course (admin only)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Course ID
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                course_name:
+                  type: string
+                  minLength: 2
+                  description: Course name
+                description:
+                  type: string
+                  description: Course description
+                amount:
+                  type: number
+                  format: float
+                  minimum: 0
+                  description: Course price
+                offer_amount:
+                  type: number
+                  format: float
+                  minimum: 0
+                  description: Discounted price
+                max_tokens:
+                  type: integer
+                  minimum: 0
+                  description: AI chat token limit
+              required:
+                - course_name
+                - description
+      responses:
+        '200':
+          description: Course updated successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          course:
+                            $ref: '#/components/schemas/Course'
+
+    delete:
+      tags:
+        - Admin
+      summary: Delete course (Admin)
+      description: Delete a course (admin only)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Course ID
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Course deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /api/admin/subjects:
+    post:
+      tags:
+        - Admin
+      summary: Create new subject (Admin)
+      description: Create a new subject for a course (admin only)
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                course_id:
+                  type: integer
+                  description: Parent course ID
+                subject_name:
+                  type: string
+                  minLength: 2
+                  description: Subject name
+                amount:
+                  type: number
+                  format: float
+                  minimum: 0
+                  description: Subject price
+                offer_amount:
+                  type: number
+                  format: float
+                  minimum: 0
+                  description: Discounted price
+                max_tokens:
+                  type: integer
+                  minimum: 0
+                  description: AI chat token limit
+                total_mock:
+                  type: integer
+                  minimum: 0
+                  description: Number of mock tests
+                is_bundle:
+                  type: boolean
+                  default: false
+                  description: Whether this is a bundle package
+              required:
+                - course_id
+                - subject_name
+      responses:
+        '201':
+          description: Subject created successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          subject:
+                            $ref: '#/components/schemas/Subject'
+
+  /api/admin/subjects/{id}:
+    put:
+      tags:
+        - Admin
+      summary: Update subject (Admin)
+      description: Update an existing subject including soft delete (admin only)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Subject ID
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                subject_name:
+                  type: string
+                  minLength: 2
+                  description: Subject name
+                amount:
+                  type: number
+                  format: float
+                  minimum: 0
+                  description: Subject price
+                offer_amount:
+                  type: number
+                  format: float
+                  minimum: 0
+                  description: Discounted price
+                max_tokens:
+                  type: integer
+                  minimum: 0
+                  description: AI chat token limit
+                total_mock:
+                  type: integer
+                  minimum: 0
+                  description: Number of mock tests
+                is_bundle:
+                  type: boolean
+                  description: Whether this is a bundle package
+                is_deleted:
+                  type: boolean
+                  description: Soft delete flag
+      responses:
+        '200':
+          description: Subject updated successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          subject:
+                            $ref: '#/components/schemas/Subject'
+
+  /api/admin/users:
+    get:
+      tags:
+        - Admin
+      summary: Get all users (Admin)
+      description: Get all users for admin management
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          description: Page number for pagination
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: per_page
+          in: query
+          description: Number of users per page
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: status
+          in: query
+          description: Filter by user status
+          schema:
+            type: string
+            enum: [active, inactive, suspended]
+        - name: source
+          in: query
+          description: Filter by registration source
+          schema:
+            type: string
+            enum: [manual, google, test]
+      responses:
+        '200':
+          description: Users retrieved successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          users:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/User'
+                          pagination:
+                            type: object
+                            properties:
+                              page:
+                                type: integer
+                              pages:
+                                type: integer
+                              per_page:
+                                type: integer
+                              total:
+                                type: integer
+
+  # Development Endpoints
+  /api/create-test-user:
+    post:
+      tags:
+        - Development
+      summary: Create test user
+      description: Create a test user account for demo purposes (development only)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                suffix:
+                  type: string
+                  description: Optional suffix for test user email
+            example:
+              suffix: "1"
+      responses:
+        '200':
+          description: Test user created or retrieved
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          user:
+                            $ref: '#/components/schemas/User'
+                          access_token:
+                            type: string
+                            description: JWT access token
+                          refresh_token:
+                            type: string
+                            description: JWT refresh token
+                          message:
+                            type: string
+                            description: Creation status message

@@ -63,10 +63,14 @@ export default function AIChatbot({ user }: AIChatbotProps) {
     is_unlimited: false
   });
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
 
+  // Only auto-scroll for new messages, not on initial load
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isTyping]);
+    if (!isInitialLoad) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages, isTyping, isInitialLoad]);
 
   useEffect(() => {
     // Fetch token status when component mounts
@@ -90,6 +94,9 @@ export default function AIChatbot({ user }: AIChatbotProps) {
         }
       } catch (error) {
         console.error('Failed to fetch token status:', error);
+      } finally {
+        // Mark initial load as complete after token fetch
+        setIsInitialLoad(false);
       }
     };
 
@@ -138,6 +145,11 @@ export default function AIChatbot({ user }: AIChatbotProps) {
     setInput('');
     setIsTyping(true);
 
+    // Ensure we scroll to bottom for new messages
+    setTimeout(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, 100);
+
     try {
       const token = localStorage.getItem('access_token');
       if (!token) {
@@ -171,6 +183,11 @@ export default function AIChatbot({ user }: AIChatbotProps) {
           if (data.data.token_info) {
             setTokenStatus(data.data.token_info);
           }
+
+          // Scroll to bottom after AI response
+          setTimeout(() => {
+            messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+          }, 100);
         } else {
           throw new Error(data.message || 'Failed to get AI response');
         }
@@ -187,6 +204,11 @@ export default function AIChatbot({ user }: AIChatbotProps) {
         timestamp: new Date()
       };
       setMessages(prev => [...prev, errorMessage]);
+
+      // Scroll to bottom after error message
+      setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
     } finally {
       setIsTyping(false);
     }
@@ -204,13 +226,12 @@ export default function AIChatbot({ user }: AIChatbotProps) {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="h-screen bg-gray-50 flex flex-col">
       <Header user={user} />
-      
-      <div className="container mx-auto px-4 py-8">
-        <div className="grid lg:grid-cols-4 gap-6 max-w-7xl mx-auto">
-          {/* Sidebar */}
-          <div className="lg:col-span-1 space-y-6">
+
+      <div className="flex-1 flex overflow-hidden">
+        {/* Sidebar */}
+        <div className="w-80 bg-white border-r border-gray-200 p-4 space-y-6 overflow-y-auto">
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -317,24 +338,24 @@ export default function AIChatbot({ user }: AIChatbotProps) {
                 </p>
               </CardContent>
             </Card>
+        </div>
+
+        {/* Main Chat Area */}
+        <div className="flex-1 flex flex-col bg-white">
+          {/* Chat Header */}
+          <div className="border-b border-gray-200 p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Bot className="w-6 h-6 text-purple-600" />
+                <h1 className="text-xl font-semibold">AI Doubt Solver</h1>
+              </div>
+              <Badge>Chat History: {messages.length - 1}</Badge>
+            </div>
           </div>
 
-          {/* Main Chat Area */}
-          <div className="lg:col-span-3">
-            <Card className="h-[calc(100vh-12rem)] flex flex-col">
-              <CardHeader className="border-b">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="flex items-center gap-2">
-                    <Bot className="w-6 h-6 text-purple-600" />
-                    AI Doubt Solver
-                  </CardTitle>
-                  <Badge>Chat History: {messages.length - 1}</Badge>
-                </div>
-              </CardHeader>
-              
-              {/* Messages */}
-              <div className="flex-1 p-6 overflow-y-auto">
-                <div className="space-y-4">
+          {/* Messages */}
+          <div className="flex-1 p-6 overflow-y-auto">
+            <div className="space-y-4 max-w-4xl mx-auto">
                   {messages.map((message) => (
                     <div
                       key={message.id}
@@ -393,30 +414,30 @@ export default function AIChatbot({ user }: AIChatbotProps) {
                 </div>
               </div>
 
-              {/* Input Area */}
-              <div className="border-t p-4">
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="Ask me anything about Physics, Chemistry, Biology, or Maths..."
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    onKeyPress={handleKeyPress}
-                    className="flex-1"
-                  />
-                  <Button 
-                    onClick={handleSend} 
-                    disabled={!input.trim() || isTyping}
-                    size="icon"
-                    className="bg-gradient-to-r from-purple-600 to-pink-600"
-                  >
-                    <Send className="w-4 h-4" />
-                  </Button>
-                </div>
-                <p className="text-xs text-gray-500 mt-2">
-                  Press Enter to send • AI responses are for educational guidance only
-                </p>
+          {/* Input Area - Fixed at bottom */}
+          <div className="border-t border-gray-200 p-4 bg-white">
+            <div className="max-w-4xl mx-auto">
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Ask me anything about Physics, Chemistry, Biology, or Maths..."
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyPress={handleKeyPress}
+                  className="flex-1"
+                />
+                <Button
+                  onClick={handleSend}
+                  disabled={!input.trim() || isTyping}
+                  size="icon"
+                  className="bg-gradient-to-r from-purple-600 to-pink-600"
+                >
+                  <Send className="w-4 h-4" />
+                </Button>
               </div>
-            </Card>
+              <p className="text-xs text-gray-500 mt-2">
+                Press Enter to send • AI responses are for educational guidance only
+              </p>
+            </div>
           </div>
         </div>
       </div>

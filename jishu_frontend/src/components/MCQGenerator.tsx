@@ -28,20 +28,17 @@ interface MCQGeneratorProps {
 }
 
 export default function MCQGenerator({ user }: MCQGeneratorProps) {
-  // Form state
-  const [topic, setTopic] = useState('');
+  // Form state - simplified to only use PDF content
   const [subject, setSubject] = useState('');
-  const [content, setContent] = useState('');
   const [numQuestions, setNumQuestions] = useState('5');
-  const [difficulty, setDifficulty] = useState<'easy' | 'medium' | 'hard'>('medium');
-  const [usePdfContent, setUsePdfContent] = useState(true);
+  // Removed difficulty options - always generate "hard" questions
+  // Removed text content option - only PDF content allowed
   const [saveToDatabase, setSaveToDatabase] = useState(false);
-  
+
   // UI state
   const [loading, setLoading] = useState(false);
   const [questions, setQuestions] = useState<MCQQuestion[]>([]);
   const [aiStatus, setAiStatus] = useState<AIStatusResponse | null>(null);
-  const [activeTab, setActiveTab] = useState<'text' | 'pdf'>('pdf');
 
   // Check AI service status
   const checkAIStatus = async () => {
@@ -63,55 +60,15 @@ export default function MCQGenerator({ user }: MCQGeneratorProps) {
     }
   };
 
-  // Generate MCQ from text content
-  const generateFromText = async () => {
-    if (!content.trim()) {
-      toast.error('Please enter content to generate questions from');
-      return;
-    }
+  // Generate MCQ from subject PDFs only (removed text generation)
 
-    if (content.trim().length < 100) {
-      toast.error('Content must be at least 100 characters long');
-      return;
-    }
-
-    const numQuestionsInt = parseInt(numQuestions);
-    if (isNaN(numQuestionsInt) || numQuestionsInt < 1 || numQuestionsInt > 20) {
-      toast.error('Number of questions must be between 1 and 20');
-      return;
-    }
-
-    try {
-      setLoading(true);
-      setQuestions([]);
-
-      const response = await mcqGenerationApi.generateFromText({
-        content: content.trim(),
-        num_questions: numQuestionsInt,
-        subject_name: subject.trim() || undefined,
-        difficulty,
-        save_to_database: saveToDatabase,
-      });
-
-      if (response.data.success && response.data.questions) {
-        setQuestions(response.data.questions);
-        toast.success(`Generated ${response.data.questions.length} questions successfully!`);
-      } else {
-        toast.error('Failed to generate questions', {
-          description: response.data.error || 'Unknown error occurred'
-        });
-      }
-    } catch (error: any) {
-      toast.error('Failed to generate MCQ from text', {
-        description: error.message || 'Unknown error occurred'
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Generate MCQ from PDFs
+  // Generate MCQ from subject PDFs only - always hard difficulty
   const generateFromPDFs = async () => {
+    if (!subject.trim()) {
+      toast.error('Please enter a subject name to generate questions from PDFs');
+      return;
+    }
+
     const numQuestionsInt = parseInt(numQuestions);
     if (isNaN(numQuestionsInt) || numQuestionsInt < 1 || numQuestionsInt > 20) {
       toast.error('Number of questions must be between 1 and 20');
@@ -124,14 +81,14 @@ export default function MCQGenerator({ user }: MCQGeneratorProps) {
 
       const response = await mcqGenerationApi.generateFromPDFs({
         num_questions: numQuestionsInt,
-        subject_name: subject.trim() || undefined,
-        difficulty,
+        subject_name: subject.trim(),
+        difficulty: 'hard', // Always generate hard questions
         save_to_database: saveToDatabase,
       });
 
       if (response.data.success && response.data.questions) {
         setQuestions(response.data.questions);
-        toast.success(`Generated ${response.data.questions.length} questions from ${response.data.total_pdfs_processed || 0} PDF files!`);
+        toast.success(`Generated ${response.data.questions.length} hard questions from ${response.data.total_pdfs_processed || 0} PDF files!`);
       } else {
         toast.error('Failed to generate questions from PDFs', {
           description: response.data.error || 'Unknown error occurred'
@@ -233,30 +190,18 @@ export default function MCQGenerator({ user }: MCQGeneratorProps) {
             </CardContent>
           </Card>
 
-          {/* Generation Mode Tabs */}
+          {/* Generation Mode - PDF Only */}
           <Card className="mb-6">
             <CardHeader>
-              <CardTitle>Generation Mode</CardTitle>
+              <CardTitle className="flex items-center">
+                <FileText className="w-5 h-5 mr-2" />
+                MCQ Generation from Subject PDFs
+              </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="flex gap-4 mb-6">
-                <Button
-                  variant={activeTab === 'pdf' ? 'default' : 'outline'}
-                  onClick={() => setActiveTab('pdf')}
-                  className="flex-1"
-                >
-                  <FileText className="w-4 h-4 mr-2" />
-                  From PDFs
-                </Button>
-                <Button
-                  variant={activeTab === 'text' ? 'default' : 'outline'}
-                  onClick={() => setActiveTab('text')}
-                  className="flex-1"
-                >
-                  <BookOpen className="w-4 h-4 mr-2" />
-                  From Text
-                </Button>
-              </div>
+              <p className="text-sm text-gray-600">
+                Generate hard-level MCQ questions from PDF textbooks in the pdfs/subjects/ directory.
+              </p>
             </CardContent>
           </Card>
 
@@ -266,16 +211,20 @@ export default function MCQGenerator({ user }: MCQGeneratorProps) {
               <CardTitle>Configuration</CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
-              {/* Common Fields */}
+              {/* Configuration Fields - Simplified for PDF-only generation */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <Label htmlFor="subject">Subject (Optional)</Label>
+                  <Label htmlFor="subject">Subject Name *</Label>
                   <Input
                     id="subject"
                     value={subject}
                     onChange={(e) => setSubject(e.target.value)}
                     placeholder="e.g., Biology, Mathematics, History"
+                    required
                   />
+                  <p className="text-sm text-gray-500">
+                    Must match a folder name in pdfs/subjects/ directory
+                  </p>
                 </div>
 
                 <div className="space-y-2">
@@ -292,20 +241,6 @@ export default function MCQGenerator({ user }: MCQGeneratorProps) {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="difficulty">Difficulty Level</Label>
-                  <Select value={difficulty} onValueChange={(value: 'easy' | 'medium' | 'hard') => setDifficulty(value)}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select difficulty" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="easy">Easy</SelectItem>
-                      <SelectItem value="medium">Medium</SelectItem>
-                      <SelectItem value="hard">Hard</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
                   <div className="flex items-center space-x-2">
                     <Switch
                       id="saveToDatabase"
@@ -315,73 +250,34 @@ export default function MCQGenerator({ user }: MCQGeneratorProps) {
                     <Label htmlFor="saveToDatabase">Save to Database</Label>
                   </div>
                 </div>
+
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Difficulty Level</Label>
+                  <div className="p-3 bg-gray-50 rounded-md">
+                    <span className="text-sm text-gray-600">Hard (Fixed)</span>
+                    <p className="text-xs text-gray-500 mt-1">
+                      All questions are generated at hard difficulty level
+                    </p>
+                  </div>
+                </div>
               </div>
-
-              {/* Text Content Field (only for text mode) */}
-              {activeTab === 'text' && (
-                <div className="space-y-2">
-                  <Label htmlFor="content">Content *</Label>
-                  <Textarea
-                    id="content"
-                    value={content}
-                    onChange={(e) => setContent(e.target.value)}
-                    placeholder="Enter the educational content from which you want to generate MCQs (minimum 100 characters)..."
-                    rows={8}
-                    className="resize-none"
-                  />
-                  <p className="text-sm text-gray-500">
-                    Characters: {content.length} (minimum 100 required)
-                  </p>
-                </div>
-              )}
-
-              {/* Topic Field (only for PDF mode) */}
-              {activeTab === 'pdf' && (
-                <div className="space-y-2">
-                  <Label htmlFor="topic">Topic (Optional)</Label>
-                  <Input
-                    id="topic"
-                    value={topic}
-                    onChange={(e) => setTopic(e.target.value)}
-                    placeholder="e.g., photosynthesis, algebra, history"
-                  />
-                  <p className="text-sm text-gray-500">
-                    Leave empty to generate questions from all available PDF content
-                  </p>
-                </div>
-              )}
 
               <Separator />
 
-              {/* Action Buttons */}
+              {/* Action Button - PDF Generation Only */}
               <div className="flex gap-4">
-                {activeTab === 'text' ? (
-                  <Button
-                    onClick={generateFromText}
-                    disabled={loading || !content.trim() || content.length < 100}
-                    className="flex-1"
-                  >
-                    {loading ? (
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    ) : (
-                      <Brain className="w-4 h-4 mr-2" />
-                    )}
-                    Generate from Text
-                  </Button>
-                ) : (
-                  <Button
-                    onClick={generateFromPDFs}
-                    disabled={loading}
-                    className="flex-1"
-                  >
-                    {loading ? (
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    ) : (
-                      <FileText className="w-4 h-4 mr-2" />
-                    )}
-                    Generate from PDFs
-                  </Button>
-                )}
+                <Button
+                  onClick={generateFromPDFs}
+                  disabled={loading || !subject.trim()}
+                  className="flex-1"
+                >
+                  {loading ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <FileText className="w-4 h-4 mr-2" />
+                  )}
+                  Generate Hard MCQs from Subject PDFs
+                </Button>
               </div>
 
               {loading && (

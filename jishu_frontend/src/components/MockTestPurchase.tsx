@@ -22,6 +22,7 @@ import { toast } from 'sonner@2.0.3';
 import { Link } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from '../store';
 import { processPurchase, clearCart } from '../store/slices/purchaseSlice';
+import api from '../services/api';
 
 interface MockTestPurchaseProps {
   user: any;
@@ -32,12 +33,7 @@ export default function MockTestPurchase({ user }: MockTestPurchaseProps) {
   const dispatch = useAppDispatch();
   const { currentCart, isLoading, error } = useAppSelector((state) => state.purchase);
 
-  const [paymentMethod, setPaymentMethod] = useState('card');
-  const [cardNumber, setCardNumber] = useState('');
-  const [cardName, setCardName] = useState('');
-  const [expiryDate, setExpiryDate] = useState('');
-  const [cvv, setCvv] = useState('');
-  const [upiId, setUpiId] = useState('');
+  // Simplified for local development - no payment gateway needed
   const [isProcessing, setIsProcessing] = useState(false);
 
   // Check if cart is empty and redirect
@@ -70,52 +66,82 @@ export default function MockTestPurchase({ user }: MockTestPurchaseProps) {
   const tax = Math.round((subtotal - discount) * 0.18);
   const total = subtotal - discount + tax;
 
-  const handlePayment = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (paymentMethod === 'card') {
-      if (!cardNumber || !cardName || !expiryDate || !cvv) {
-        toast.error('Please fill in all card details');
-        return;
-      }
-    } else if (paymentMethod === 'upi') {
-      if (!upiId) {
-        toast.error('Please enter UPI ID');
-        return;
-      }
-    }
-
+  const handlePurchaseConfirmation = async () => {
     setIsProcessing(true);
 
-    // Auto-purchase without payment processing
     try {
-      // Process each item separately (no payment required)
-      for (const item of currentCart.items) {
-        const purchaseData = {
-          courseId: currentCart.courseId || '',
-          subjectId: item.type === 'subject' ? item.id : undefined,
-          paymentMethod: 'auto' // No actual payment method needed
-        };
+      // Debug: Log current cart
+      console.log('Current cart:', currentCart);
 
-        await dispatch(processPurchase(purchaseData)).unwrap();
+      // Determine purchase type based on cart items
+      let purchaseType: 'single_subject' | 'multiple_subjects' | 'full_bundle';
+      let subjectIds: number[] = [];
+
+      // Check if it's a bundle purchase
+      if (currentCart.isBundle || currentCart.items.some(item => item.type === 'bundle')) {
+        purchaseType = 'full_bundle';
+        // For bundle, get all subject IDs from the bundle or all items
+        subjectIds = currentCart.items
+          .filter(item => item.type === 'subject' || !item.type) // Include items without type (legacy)
+          .map(item => item.id);
+      } else if (currentCart.items.length === 1) {
+        purchaseType = 'single_subject';
+        subjectIds = [currentCart.items[0].id];
+      } else if (currentCart.items.length === 2) {
+        purchaseType = 'multiple_subjects';
+        subjectIds = currentCart.items.map(item => item.id);
+      } else {
+        // Fallback to full bundle for more than 2 items
+        purchaseType = 'full_bundle';
+        subjectIds = currentCart.items.map(item => item.id);
       }
+
+      console.log('Purchase type:', purchaseType);
+      console.log('Subject IDs:', subjectIds);
+
+      // Create purchase using new API with correct field names
+      const purchaseData: any = {
+        course_id: parseInt(currentCart.courseId || '0'),
+        purchase_type: purchaseType,
+        cost: total
+      };
+
+      // Add subject fields based on purchase type
+      if (purchaseType === 'single_subject') {
+        purchaseData.subject_id = subjectIds[0]; // Single subject ID
+      } else {
+        purchaseData.subject_ids = subjectIds; // Multiple subject IDs
+      }
+
+      // Validate course ID
+      if (!purchaseData.course_id || purchaseData.course_id === 0) {
+        throw new Error('Invalid course ID. Please try selecting the course again.');
+      }
+
+      console.log('Final purchase data:', purchaseData);
+
+      const response = await api.purchase.createPurchase(purchaseData);
 
       dispatch(clearCart());
 
-      setIsProcessing(false);
-      toast.success('Access granted! You can now take tests.');
+      toast.success(
+        `Purchase completed! ${response.data.test_cards_created} test cards created. You now have access to ${response.data.total_test_cards} total test cards.`
+      );
 
-      // Redirect to results page with purchase success flag
+      // Redirect to test card dashboard
       navigate('/results', {
         state: {
           purchaseSuccess: true,
-          message: 'Course access granted! Your tests are now available.'
+          purchaseData: response.data,
+          message: `Course access granted! ${response.data.test_cards_created} test cards are now available.`
         }
       });
     } catch (error) {
-      setIsProcessing(false);
-      const errorMessage = error instanceof Error ? error.message : 'Failed to grant access. Please try again.';
+      console.error('Purchase failed:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to complete purchase. Please try again.';
       toast.error(errorMessage);
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -169,119 +195,49 @@ export default function MockTestPurchase({ user }: MockTestPurchaseProps) {
               </CardContent>
             </Card>
 
-            {/* Payment Method */}
+            {/* Local Development - Instant Access */}
             <Card>
               <CardHeader>
-                <CardTitle>Payment Method</CardTitle>
+                <CardTitle>Local Development Mode</CardTitle>
               </CardHeader>
               <CardContent>
-                <RadioGroup value={paymentMethod} onValueChange={setPaymentMethod}>
-                  <div className="flex items-center space-x-3 p-4 border rounded-lg cursor-pointer hover:bg-gray-50">
-                    <RadioGroupItem value="card" id="card" />
-                    <Label htmlFor="card" className="flex items-center gap-2 cursor-pointer flex-1">
-                      <CreditCard className="w-5 h-5" />
-                      <span>Credit / Debit Card</span>
-                    </Label>
+                <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                  <div className="flex items-center gap-2 mb-2">
+                    <CheckCircle2 className="w-5 h-5 text-green-600" />
+                    <span className="font-medium text-green-800">Instant Access Available</span>
                   </div>
-                  <div className="flex items-center space-x-3 p-4 border rounded-lg cursor-pointer hover:bg-gray-50">
-                    <RadioGroupItem value="upi" id="upi" />
-                    <Label htmlFor="upi" className="flex items-center gap-2 cursor-pointer flex-1">
-                      <Smartphone className="w-5 h-5" />
-                      <span>UPI</span>
-                    </Label>
-                  </div>
-                  <div className="flex items-center space-x-3 p-4 border rounded-lg cursor-pointer hover:bg-gray-50">
-                    <RadioGroupItem value="netbanking" id="netbanking" />
-                    <Label htmlFor="netbanking" className="flex items-center gap-2 cursor-pointer flex-1">
-                      <Building2 className="w-5 h-5" />
-                      <span>Net Banking</span>
-                    </Label>
-                  </div>
-                </RadioGroup>
+                  <p className="text-sm text-green-700">
+                    In local development mode, you get instant access to all purchased content without payment processing.
+                  </p>
+                </div>
 
-                <form onSubmit={handlePayment} className="mt-6 space-y-4">
-                  {paymentMethod === 'card' && (
-                    <>
-                      <div className="space-y-2">
-                        <Label htmlFor="cardNumber">Card Number</Label>
-                        <Input
-                          id="cardNumber"
-                          placeholder="1234 5678 9012 3456"
-                          value={cardNumber}
-                          onChange={(e) => setCardNumber(e.target.value)}
-                          maxLength={19}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="cardName">Cardholder Name</Label>
-                        <Input
-                          id="cardName"
-                          placeholder="John Doe"
-                          value={cardName}
-                          onChange={(e) => setCardName(e.target.value)}
-                        />
-                      </div>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="expiry">Expiry Date</Label>
-                          <Input
-                            id="expiry"
-                            placeholder="MM/YY"
-                            value={expiryDate}
-                            onChange={(e) => setExpiryDate(e.target.value)}
-                            maxLength={5}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="cvv">CVV</Label>
-                          <Input
-                            id="cvv"
-                            type="password"
-                            placeholder="123"
-                            value={cvv}
-                            onChange={(e) => setCvv(e.target.value)}
-                            maxLength={3}
-                          />
-                        </div>
-                      </div>
-                    </>
-                  )}
-
-                  {paymentMethod === 'upi' && (
-                    <div className="space-y-2">
-                      <Label htmlFor="upiId">UPI ID</Label>
-                      <Input
-                        id="upiId"
-                        placeholder="yourname@upi"
-                        value={upiId}
-                        onChange={(e) => setUpiId(e.target.value)}
-                      />
-                    </div>
-                  )}
-
-                  {paymentMethod === 'netbanking' && (
-                    <div className="p-4 bg-blue-50 rounded-lg text-sm">
-                      <p>You will be redirected to your bank's secure payment gateway</p>
-                    </div>
-                  )}
-
-                  <Button 
-                    type="submit" 
-                    size="lg" 
-                    className="w-full"
+                <div className="mt-6">
+                  <Button
+                    onClick={handlePurchaseConfirmation}
+                    size="lg"
+                    className="w-full bg-green-600 hover:bg-green-700"
                     disabled={isProcessing}
                   >
-                    <Lock className="w-4 h-4 mr-2" />
-                    {isProcessing ? 'Processing...' : `Pay ₹${total}`}
+                    {isProcessing ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Processing...
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 className="w-4 h-4 mr-2" />
+                        Get Instant Access - ₹{total}
+                      </>
+                    )}
                   </Button>
-                </form>
+                </div>
               </CardContent>
             </Card>
 
-            {/* Security Badge */}
+            {/* Development Mode Info */}
             <div className="flex items-center justify-center gap-4 text-sm text-gray-600">
-              <Shield className="w-5 h-5" />
-              <span>Your payment information is secure and encrypted</span>
+              <CheckCircle2 className="w-5 h-5 text-green-600" />
+              <span>Local development mode - instant access without payment processing</span>
             </div>
           </div>
 

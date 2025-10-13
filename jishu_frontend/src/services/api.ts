@@ -1,6 +1,123 @@
 // API Service Layer for Jishu Backend Integration
 const API_BASE_URL = 'http://localhost:5000';
 
+// Request deduplication and queuing system
+class RequestManager {
+  private pendingRequests = new Map<string, Promise<any>>();
+  private refreshPromise: Promise<string | null> | null = null;
+  private requestQueue: Array<() => Promise<any>> = [];
+  private isRefreshing = false;
+
+  // Generate unique key for request deduplication
+  private getRequestKey(endpoint: string, options: RequestInit): string {
+    const method = options.method || 'GET';
+    const body = options.body || '';
+    return `${method}:${endpoint}:${body}`;
+  }
+
+  // Check if request is already pending
+  isDuplicateRequest(endpoint: string, options: RequestInit): boolean {
+    const key = this.getRequestKey(endpoint, options);
+    return this.pendingRequests.has(key);
+  }
+
+  // Get existing pending request
+  getPendingRequest(endpoint: string, options: RequestInit): Promise<any> | null {
+    const key = this.getRequestKey(endpoint, options);
+    return this.pendingRequests.get(key) || null;
+  }
+
+  // Add request to pending map
+  addPendingRequest(endpoint: string, options: RequestInit, promise: Promise<any>): void {
+    const key = this.getRequestKey(endpoint, options);
+    this.pendingRequests.set(key, promise);
+
+    // Clean up when request completes
+    promise.finally(() => {
+      this.pendingRequests.delete(key);
+    });
+  }
+
+  // Centralized token refresh with queuing
+  async refreshToken(): Promise<string | null> {
+    if (this.refreshPromise) {
+      return this.refreshPromise;
+    }
+
+    this.isRefreshing = true;
+    this.refreshPromise = this.performTokenRefresh();
+
+    try {
+      const result = await this.refreshPromise;
+
+      // Process queued requests
+      if (result) {
+        const queuedRequests = [...this.requestQueue];
+        this.requestQueue = [];
+
+        // Execute all queued requests
+        await Promise.all(queuedRequests.map(request => request()));
+      }
+
+      return result;
+    } finally {
+      this.refreshPromise = null;
+      this.isRefreshing = false;
+    }
+  }
+
+  private async performTokenRefresh(): Promise<string | null> {
+    const refreshToken = getRefreshToken();
+    if (!refreshToken) return null;
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/refresh-token`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${refreshToken}`
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.data?.access_token) {
+          localStorage.setItem('access_token', data.data.access_token);
+          if (data.data?.refresh_token) {
+            localStorage.setItem('refresh_token', data.data.refresh_token);
+          }
+          return data.data.access_token;
+        }
+      }
+    } catch (error) {
+      console.error('Failed to refresh token:', error);
+    }
+
+    return null;
+  }
+
+  // Add request to queue during token refresh
+  queueRequest(requestFn: () => Promise<any>): Promise<any> {
+    return new Promise((resolve, reject) => {
+      this.requestQueue.push(async () => {
+        try {
+          const result = await requestFn();
+          resolve(result);
+        } catch (error) {
+          reject(error);
+        }
+      });
+    });
+  }
+
+  // Check if currently refreshing token
+  isTokenRefreshing(): boolean {
+    return this.isRefreshing;
+  }
+}
+
+const requestManager = new RequestManager();
+
 // Types for API responses
 export interface ApiResponse<T = any> {
   success: boolean;
@@ -111,40 +228,42 @@ export const saveTokens = (accessToken: string, refreshToken: string): void => {
   localStorage.setItem('refresh_token', refreshToken);
 };
 
-// Refresh access token using refresh token
+// Legacy refresh function - now uses RequestManager
 const refreshAccessToken = async (): Promise<string | null> => {
-  const refreshToken = getRefreshToken();
-  if (!refreshToken) return null;
-
-  try {
-    const response = await fetch(`${API_BASE_URL}/refresh-token`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${refreshToken}`
-      }
-    });
-
-    if (response.ok) {
-      const data = await response.json();
-      if (data.success && data.data?.access_token) {
-        localStorage.setItem('access_token', data.data.access_token);
-        // Also store the new refresh token if provided
-        if (data.data?.refresh_token) {
-          localStorage.setItem('refresh_token', data.data.refresh_token);
-        }
-        return data.data.access_token;
-      }
-    }
-  } catch (error) {
-    console.error('Failed to refresh token:', error);
-  }
-
-  return null;
+  return requestManager.refreshToken();
 };
 
-// Generic API request function
+// Generic API request function with duplicate protection
 export const apiRequest = async <T = any>(
+  endpoint: string,
+  options: RequestInit = {}
+): Promise<ApiResponse<T>> => {
+  // Check for duplicate requests (except for certain endpoints)
+  const allowDuplicates = ['/api/auth/otp/request', '/api/ai/chat', '/api/ai/rag/chat'].some(path => endpoint.includes(path));
+
+  if (!allowDuplicates && requestManager.isDuplicateRequest(endpoint, options)) {
+    console.log('🔄 Duplicate request detected, returning existing promise');
+    return requestManager.getPendingRequest(endpoint, options);
+  }
+
+  // If token is being refreshed, queue this request
+  if (requestManager.isTokenRefreshing() && getAuthToken()) {
+    console.log('🔄 Token refresh in progress, queueing request');
+    return requestManager.queueRequest(() => apiRequest(endpoint, options));
+  }
+
+  const requestPromise = performApiRequest<T>(endpoint, options);
+
+  // Track this request for deduplication
+  if (!allowDuplicates) {
+    requestManager.addPendingRequest(endpoint, options, requestPromise);
+  }
+
+  return requestPromise;
+};
+
+// Actual API request implementation
+const performApiRequest = async <T = any>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<ApiResponse<T>> => {
@@ -173,7 +292,7 @@ export const apiRequest = async <T = any>(
     // If unauthorized and we have a refresh token, try to refresh
     if (response.status === 401 && getRefreshToken()) {
       console.log('🔄 Token expired, attempting refresh...');
-      const newToken = await refreshAccessToken();
+      const newToken = await requestManager.refreshToken();
 
       if (newToken) {
         console.log('✅ Token refreshed successfully');
@@ -290,6 +409,48 @@ export const subjectsApi = {
     apiRequest<{ bundles: Subject[] }>(`/api/bundles?course_id=${courseId}&include_deleted=${includeDeleted}`),
 };
 
+// Purchase API - Enhanced for Mock Test Flow
+export const purchaseApi = {
+  // Create a new purchase with enhanced options
+  createPurchase: (data: {
+    course_id: number;
+    purchase_type: 'single_subject' | 'multiple_subjects' | 'full_bundle';
+    subject_id?: number;      // For single_subject
+    subject_ids?: number[];   // For multiple_subjects and full_bundle
+    cost: number;
+  }) =>
+    apiRequest<{
+      purchase_id: number;
+      purchase_type: string;
+      subjects_included: number[];
+      test_cards_created: number;
+      total_test_cards: number;
+      chatbot_tokens_unlimited: boolean;
+      message: string;
+    }>('/api/purchases', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  // Get user's purchases
+  getUserPurchases: () =>
+    apiRequest<{
+      purchases: Array<{
+        id: number;
+        exam_category_id: number;
+        exam_category_name: string;
+        purchase_type: string;
+        subjects_included: number[];
+        cost: number;
+        purchase_date: string;
+        status: string;
+        test_cards_count: number;
+        chatbot_tokens_unlimited: boolean;
+      }>;
+      total_purchases: number;
+    }>('/api/user/purchases'),
+};
+
 // Community API
 export const communityApi = {
   getPosts: () =>
@@ -372,31 +533,22 @@ export const mcqGenerationApi = {
   getAIStatus: () =>
     apiRequest<AIStatusResponse>('/api/ai/rag/status'),
 
-  // Generate MCQ from text content (Admin only)
-  generateFromText: (data: {
-    content: string;
-    num_questions: number;
-    subject_name?: string;
-    difficulty?: 'easy' | 'medium' | 'hard';
-    exam_category_id?: number;
-    subject_id?: number;
-    save_to_database?: boolean;
-  }) =>
-    apiRequest<MCQGenerationResponse>('/api/ai/generate-questions-from-text', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
-
-  // Generate MCQ from PDFs (Admin only)
+  // Generate MCQ from PDFs - restricted to hard difficulty only
   generateFromPDFs: (data: {
     num_questions: number;
-    subject_name?: string;
-    difficulty?: 'easy' | 'medium' | 'hard';
-    exam_category_id?: number;
-    subject_id?: number;
-    save_to_database?: boolean;
+    subject_name: string;
+    difficulty: string;
+    save_to_database: boolean;
   }) =>
-    apiRequest<MCQGenerationResponse>('/api/ai/generate-questions-from-pdfs', {
+    apiRequest<{
+      questions: MCQQuestion[];
+      total_generated: number;
+      subject_name: string;
+      difficulty: string;
+      saved_to_database: boolean;
+      sources_used: string[];
+      model_used: string;
+    }>('/api/ai/generate-mcq-from-pdfs', {
       method: 'POST',
       body: JSON.stringify(data),
     }),
@@ -474,6 +626,110 @@ export const userTestsApi = {
         test_attempt_id: testAttemptId
       }),
     }),
+
+  // New Mock Test Card System
+  getTestCards: (subjectId?: number) => {
+    const params = subjectId ? `?subject_id=${subjectId}` : '';
+    return apiRequest<{
+      test_cards_by_subject: Array<{
+        subject_id: number;
+        subject_name: string;
+        course_name: string;
+        total_cards: number;
+        available_cards: number;
+        completed_cards: number;
+        disabled_cards: number;
+        cards: Array<{
+          id: number;
+          purchase_id: number;
+          test_number: number;
+          max_attempts: number;
+          attempts_used: number;
+          remaining_attempts: number;
+          questions_generated: boolean;
+          latest_score: number;
+          latest_percentage: number;
+          latest_attempt_date: string | null;
+          status: 'available' | 'in_progress' | 'completed' | 'disabled';
+          is_available: boolean;
+        }>;
+      }>;
+      total_subjects: number;
+    }>(`/api/user/test-cards${params}`);
+  },
+
+  // Start a test attempt for a specific test card
+  startTestCard: (mockTestId: number) =>
+    apiRequest<{
+      session_id: number;
+      mock_test_id: number;
+      attempt_number: number;
+      remaining_attempts: number;
+      questions_generated: boolean;
+    }>(`/api/user/test-cards/${mockTestId}/start`, {
+      method: 'POST',
+    }),
+
+  // Get questions for a test session (generates on first attempt, reuses on re-attempts)
+  getTestQuestions: (sessionId: number) =>
+    apiRequest<{
+      questions: Array<{
+        id: number;
+        question: string;
+        option_1: string;
+        option_2: string;
+        option_3: string;
+        option_4: string;
+        explanation?: string;
+      }>;
+      session_id: number;
+      mock_test_id: number;
+      attempt_number: number;
+      is_re_attempt: boolean;
+      total_questions: number;
+      generation_info?: {
+        model_used: string;
+        sources_used: string[];
+      };
+    }>(`/api/user/test-sessions/${sessionId}/questions`),
+
+  // Submit test session answers
+  submitTestSession: (sessionId: number, answers: any[], timeTaken: number) =>
+    apiRequest<{
+      session_id: number;
+      mock_test_id: number;
+      score: number;
+      percentage: number;
+      attempt_number: number;
+      remaining_attempts: number;
+      is_final_attempt: boolean;
+    }>(`/api/user/test-sessions/${sessionId}/submit`, {
+      method: 'POST',
+      body: JSON.stringify({
+        answers,
+        time_taken: timeTaken,
+      }),
+    }),
+
+  // Get test analytics (based on latest attempts only)
+  getTestAnalytics: (subjectId?: number) => {
+    const params = subjectId ? `?subject_id=${subjectId}` : '';
+    return apiRequest<{
+      total_tests_taken: number;
+      average_score: number;
+      average_percentage: number;
+      best_score: number;
+      worst_score: number;
+      total_time_spent: number;
+      improvement_data: {
+        improvement_available: boolean;
+        first_attempt_average?: number;
+        latest_attempt_average?: number;
+        improvement_points?: number;
+        improvement_percentage?: number;
+      };
+    }>(`/api/user/test-analytics${params}`);
+  },
 };
 
 // Admin API
@@ -584,6 +840,7 @@ export default {
   auth: authApi,
   courses: coursesApi,
   subjects: subjectsApi,
+  purchase: purchaseApi,
   community: communityApi,
   questions: questionsApi,
   mcqGeneration: mcqGenerationApi,

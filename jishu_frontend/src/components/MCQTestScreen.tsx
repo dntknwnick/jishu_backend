@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import Header from './Header';
 import { Card, CardContent } from './ui/card';
 import { Button } from './ui/button';
@@ -14,7 +14,8 @@ import {
   ChevronRight,
   AlertCircle,
   CheckCircle2,
-  Loader2
+  Loader2,
+  RotateCcw
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -40,9 +41,22 @@ interface MCQTestScreenProps {
 export default function MCQTestScreen({ user }: MCQTestScreenProps) {
   const { testId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const dispatch = useAppDispatch();
 
-  // Get purchase_id from query parameters if present
+  // Get session info from navigation state (new test card flow)
+  const sessionInfo = location.state as {
+    sessionId?: number;
+    mockTestId?: number;
+    attemptNumber?: number;
+    remainingAttempts?: number;
+    questionsGenerated?: boolean;
+    testNumber?: number;
+    subjectName?: string;
+    isReAttempt?: boolean;
+  } | null;
+
+  // Legacy: Get purchase_id from query parameters if present
   const urlParams = new URLSearchParams(window.location.search);
   const purchaseId = urlParams.get('purchase_id');
 
@@ -52,13 +66,118 @@ export default function MCQTestScreen({ user }: MCQTestScreenProps) {
   const [showSubmitDialog, setShowSubmitDialog] = useState(false);
   const [showInstructions, setShowInstructions] = useState(true);
   const [autoSubmit, setAutoSubmit] = useState(false);
+  const [isLoadingQuestions, setIsLoadingQuestions] = useState(false);
+  const [hasLoadedSession, setHasLoadedSession] = useState(false);
+
+  // Debug: Check Redux state (after state declarations)
+  console.log('🔍 Redux State Debug:');
+  console.log('- currentTest:', currentTest);
+  console.log('- currentTest.questions length:', currentTest?.questions?.length);
+  console.log('- currentTest.timeLeft:', currentTest?.timeLeft, 'type:', typeof currentTest?.timeLeft);
+  console.log('- showInstructions:', showInstructions);
+  console.log('- isLoadingQuestions:', isLoadingQuestions);
 
   useEffect(() => {
-    if (testId) {
-      // Start test attempt and generate questions for the specific subject
+    if (sessionInfo?.sessionId && !hasLoadedSession) {
+      // New test card flow - load questions immediately when component mounts
+      // This will happen during the instructions phase
+      loadTestSession();
+    } else if (testId && !hasLoadedSession) {
+      // Legacy flow - only load once
       startTestAttempt();
     }
-  }, [testId]);
+  }, [testId, sessionInfo, hasLoadedSession]);
+
+  const loadTestSession = async () => {
+    if (!sessionInfo?.sessionId || hasLoadedSession) {
+      console.log('❌ Skipping loadTestSession:', { sessionId: sessionInfo?.sessionId, hasLoadedSession });
+      return;
+    }
+
+    console.log('🚀 Starting loadTestSession for session:', sessionInfo.sessionId);
+    setIsLoadingQuestions(true);
+    setHasLoadedSession(true);
+    try {
+
+      // Generate questions using the new AI-powered endpoint
+      console.log('📡 Calling AI generation API...');
+      const questionsResponse = await userTestsApi.generateTestQuestions(sessionInfo.sessionId);
+      console.log('✅ AI Generation Response:', questionsResponse);
+
+      const generatedQuestions = questionsResponse.data.questions;
+      console.log('📝 AI Generated Questions Count:', generatedQuestions.length);
+
+      // Convert to the format expected by the test slice (new API format)
+      console.log('🔍 Full API response:', questionsResponse);
+      console.log('🔍 Generated questions array:', generatedQuestions);
+      console.log('🔍 Sample question data (first question):', generatedQuestions[0]);
+      console.log('🔍 All question keys:', Object.keys(generatedQuestions[0] || {}));
+
+      const formattedQuestions = generatedQuestions.map((q: any, index: number) => {
+        console.log(`🔍 Question ${index + 1} raw data:`, q);
+        console.log(`🔍 Question ${index + 1} keys:`, Object.keys(q));
+
+        // Try multiple possible formats
+        let options = [];
+        if (q.options && typeof q.options === 'object') {
+          // Format: { A: "text", B: "text", C: "text", D: "text" }
+          options = [q.options.A, q.options.B, q.options.C, q.options.D];
+          console.log(`🔍 Using options object format:`, options);
+        } else if (q.option_1) {
+          // Format: option_1, option_2, option_3, option_4
+          options = [q.option_1, q.option_2, q.option_3, q.option_4];
+          console.log(`🔍 Using option_X format:`, options);
+        } else if (Array.isArray(q.options)) {
+          // Format: ["text1", "text2", "text3", "text4"]
+          options = q.options;
+          console.log(`🔍 Using options array format:`, options);
+        } else {
+          console.log(`❌ No valid options format found for question ${index + 1}`);
+          options = ['Option A', 'Option B', 'Option C', 'Option D']; // Fallback
+        }
+
+        const questionData = {
+          id: q.id,
+          question: q.question,
+          options: options,
+          correct_answer: q.correct_answer,
+          explanation: q.explanation || ''
+        };
+
+        console.log(`🔍 Question ${index + 1} formatted:`, questionData);
+        return questionData;
+      });
+
+      console.log('🔄 Formatted Questions Count:', formattedQuestions.length);
+
+      // Start the test with session info
+      const testData = {
+        testId: sessionInfo.sessionId.toString(),
+        questions: formattedQuestions,
+        duration: 3600, // 60 minutes (Redux expects 'duration', not 'timeLimit')
+        sessionInfo: sessionInfo
+      };
+
+      console.log('🎯 Dispatching startTest with:', testData);
+      console.log('🎯 Duration being set:', testData.duration);
+      dispatch(startTest(testData));
+
+      console.log('✅ Questions loaded successfully!');
+
+      // Show re-attempt notification if applicable
+      if (sessionInfo.isReAttempt) {
+        toast.info(`This is attempt ${sessionInfo.attemptNumber}/3. Questions are reused from your first attempt.`);
+      }
+
+    } catch (error) {
+      console.error('Failed to load test session:', error);
+      toast.error('Failed to load test questions. Please try again.');
+      setHasLoadedSession(false); // Reset on error so user can retry
+      navigate('/results');
+    } finally {
+      setIsLoadingQuestions(false);
+    }
+  };
 
   const startTestAttempt = async () => {
     try {
@@ -71,11 +190,13 @@ export default function MCQTestScreen({ user }: MCQTestScreenProps) {
         return;
       }
 
-      // First, start the test attempt
+      console.log('MCQTestScreen: Loading test for subject', subjectId);
+
+      // Legacy flow: start test attempt and generate questions
       const startResponse = await userTestsApi.startTest(subjectId, purchaseIdNum);
       const testAttemptId = startResponse.data.test_attempt_id;
 
-      // Then generate questions for this test attempt
+      // Generate questions (backend should handle duplicate calls gracefully)
       const questionsResponse = await userTestsApi.generateTestQuestions(testAttemptId);
       const generatedQuestions = questionsResponse.data.questions;
 
@@ -105,11 +226,10 @@ export default function MCQTestScreen({ user }: MCQTestScreenProps) {
   useEffect(() => {
     if (autoSubmit && currentTest) {
       // Auto-submit when time is up
-      dispatch(submitTest());
+      handleSubmit();
       toast.warning('Time is up! Test auto-submitted.');
-      navigate('/results');
     }
-  }, [autoSubmit, currentTest, dispatch, navigate]);
+  }, [autoSubmit, currentTest]);
 
   useEffect(() => {
     if (!showInstructions && currentTest && currentTest.timeLeft > 0) {
@@ -125,6 +245,11 @@ export default function MCQTestScreen({ user }: MCQTestScreenProps) {
   }, [showInstructions, currentTest, dispatch]);
 
   const formatTime = (seconds: number) => {
+    // Handle invalid or undefined seconds
+    if (!seconds || isNaN(seconds) || seconds < 0) {
+      return '01:00:00'; // Default to 1 hour
+    }
+
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
     const secs = seconds % 60;
@@ -132,6 +257,7 @@ export default function MCQTestScreen({ user }: MCQTestScreenProps) {
   };
 
   const handleAnswer = (questionId: number, answerIndex: number) => {
+    console.log('🎯 Answer selected:', { questionId, answerIndex, option: ['A', 'B', 'C', 'D'][answerIndex] });
     dispatch(answerQuestion({ questionId, answerIndex }));
   };
 
@@ -139,22 +265,97 @@ export default function MCQTestScreen({ user }: MCQTestScreenProps) {
     dispatch(toggleFlag(questionId));
   };
 
-  const handleSubmit = () => {
-    dispatch(submitTest());
-    toast.success('Test submitted successfully!');
-    navigate('/results');
+  const handleSubmit = async () => {
+    try {
+      if (sessionInfo?.sessionId) {
+        // New test card flow - submit to session endpoint
+        console.log('🚀 Submitting test with answers:', currentTest.answers);
+
+        // Convert answers object to array format expected by API
+        const answers = currentTest.questions.map((question) => ({
+          question_id: question.id,
+          selected_option: currentTest.answers[question.id] !== undefined
+            ? ['A', 'B', 'C', 'D'][currentTest.answers[question.id]]
+            : null
+        }));
+
+        console.log('🚀 Formatted answers for API:', answers);
+        const timeTaken = 3600 - currentTest.timeLeft; // Calculate time taken
+        console.log('🚀 Time taken:', timeTaken);
+
+        const response = await userTestsApi.submitTestSession(
+          sessionInfo.sessionId,
+          answers,
+          timeTaken
+        );
+
+        // Show results with session info
+        navigate('/results', {
+          state: {
+            sessionResult: response.data,
+            sessionInfo: sessionInfo,
+            isNewTestCardFlow: true
+          }
+        });
+
+        toast.success(`Test submitted! Score: ${response.data.score}/50 (${response.data.percentage}%)`);
+
+        if (response.data.is_final_attempt) {
+          toast.info('This was your final attempt for this test card.');
+        } else if (response.data.remaining_attempts > 0) {
+          toast.info(`You have ${response.data.remaining_attempts} attempts remaining.`);
+        }
+
+      } else {
+        // Legacy flow
+        dispatch(submitTest());
+        toast.success('Test submitted successfully!');
+        navigate('/results', {
+          state: {
+            testCompleted: true
+          }
+        });
+      }
+    } catch (error) {
+      console.error('Failed to submit test:', error);
+      toast.error('Failed to submit test. Please try again.');
+    }
   };
 
   // Add loading and error states
-  if (isLoading) {
+  if (isLoading || isLoadingQuestions) {
     return (
       <div className="min-h-screen bg-gray-50">
         <Header user={user} />
         <div className="container mx-auto px-4 py-8 flex items-center justify-center">
-          <div className="flex items-center gap-2">
-            <Loader2 className="w-6 h-6 animate-spin" />
-            <span>Loading test questions...</span>
-          </div>
+          <Card className="w-full max-w-md">
+            <CardContent className="p-8 text-center space-y-4">
+              <div className="flex justify-center">
+                <Loader2 className="w-12 h-12 animate-spin text-blue-600" />
+              </div>
+              <div className="space-y-2">
+                <h3 className="text-xl font-semibold">Generating Test Questions</h3>
+                <p className="text-gray-600">
+                  {sessionInfo?.isReAttempt
+                    ? 'Loading your previous questions...'
+                    : 'Creating new questions for your test...'}
+                </p>
+                <p className="text-sm text-gray-500">This may take a few moments</p>
+              </div>
+              {sessionInfo && (
+                <div className="pt-4 border-t">
+                  <p className="text-sm text-gray-600">
+                    Test Card #{sessionInfo.testNumber} - {sessionInfo.subjectName}
+                  </p>
+                  {sessionInfo.isReAttempt && (
+                    <Badge variant="outline" className="mt-2">
+                      Re-attempt {sessionInfo.attemptNumber}/3
+                    </Badge>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
       </div>
     );
@@ -177,7 +378,7 @@ export default function MCQTestScreen({ user }: MCQTestScreenProps) {
     );
   }
 
-  if (!currentTest || questions.length === 0) {
+  if (!currentTest || !currentTest.questions || currentTest.questions.length === 0) {
     return (
       <div className="min-h-screen bg-gray-50">
         <Header user={user} />
@@ -195,8 +396,8 @@ export default function MCQTestScreen({ user }: MCQTestScreenProps) {
   }
 
   const answeredCount = Object.keys(currentTest.answers).length;
-  const unansweredCount = questions.length - answeredCount;
-  const progressPercentage = (answeredCount / questions.length) * 100;
+  const unansweredCount = currentTest.questions.length - answeredCount;
+  const progressPercentage = (answeredCount / currentTest.questions.length) * 100;
 
   if (showInstructions) {
     return (
@@ -207,8 +408,53 @@ export default function MCQTestScreen({ user }: MCQTestScreenProps) {
             <CardContent className="p-8 space-y-6">
               <div className="text-center">
                 <h1 className="text-3xl mb-2">Test Instructions</h1>
-                <p className="text-gray-600">Please read carefully before starting</p>
+                {sessionInfo ? (
+                  <div className="space-y-2">
+                    <p className="text-gray-600">Test Card #{sessionInfo.testNumber} - {sessionInfo.subjectName}</p>
+                    {sessionInfo.isReAttempt && (
+                      <div className="inline-flex items-center gap-2 px-3 py-1 bg-orange-50 text-orange-700 rounded-full text-sm">
+                        <RotateCcw className="w-4 h-4" />
+                        Re-attempt {sessionInfo.attemptNumber}/3 - Same questions as first attempt
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-gray-600">Please read carefully before starting</p>
+                )}
               </div>
+
+              {/* Show loading state while questions are being generated */}
+              {isLoadingQuestions ? (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <div className="flex items-center gap-3">
+                    <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
+                    <div>
+                      <h4 className="font-medium text-blue-900">Preparing Your Test</h4>
+                      <p className="text-sm text-blue-700">
+                        {sessionInfo?.isReAttempt
+                          ? 'Loading your previous questions...'
+                          : 'Generating fresh questions for your test...'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ) : currentTest?.questions?.length > 0 && (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-5 h-5 bg-green-600 rounded-full flex items-center justify-center">
+                      <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                    <div>
+                      <h4 className="font-medium text-green-900">Test Ready!</h4>
+                      <p className="text-sm text-green-700">
+                        {currentTest.questions.length} questions have been prepared for your test.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <div className="space-y-4">
                 <div className="flex items-start gap-3">
@@ -217,7 +463,9 @@ export default function MCQTestScreen({ user }: MCQTestScreenProps) {
                   </div>
                   <div>
                     <h3 className="mb-1">Total Questions</h3>
-                    <p className="text-sm text-gray-600">This test contains {questions.length} multiple choice questions</p>
+                    <p className="text-sm text-gray-600">
+                      This test contains {currentTest?.questions?.length || 50} multiple choice questions
+                    </p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
@@ -266,12 +514,22 @@ export default function MCQTestScreen({ user }: MCQTestScreenProps) {
                 </div>
               </div>
 
-              <Button 
-                size="lg" 
+              <Button
+                size="lg"
                 className="w-full"
                 onClick={() => setShowInstructions(false)}
+                disabled={isLoadingQuestions || !currentTest?.questions?.length}
               >
-                Start Test
+                {isLoadingQuestions ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Preparing Questions...
+                  </>
+                ) : !currentTest?.questions?.length ? (
+                  'Loading...'
+                ) : (
+                  'Start Test'
+                )}
               </Button>
             </CardContent>
           </Card>
@@ -280,7 +538,7 @@ export default function MCQTestScreen({ user }: MCQTestScreenProps) {
     );
   }
 
-  const question = questions[currentQuestion];
+  const question = currentTest.questions[currentQuestion];
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -289,8 +547,23 @@ export default function MCQTestScreen({ user }: MCQTestScreenProps) {
         <div className="container mx-auto px-4 py-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <h2 className="text-lg">Mock Test #{testId}</h2>
-              <Badge variant="secondary">{question.subject_name || 'Test'}</Badge>
+              {sessionInfo ? (
+                <div className="flex items-center gap-3">
+                  <h2 className="text-lg">Test Card #{sessionInfo.testNumber}</h2>
+                  <Badge variant="secondary">{sessionInfo.subjectName}</Badge>
+                  {sessionInfo.isReAttempt && (
+                    <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">
+                      <RotateCcw className="w-3 h-3 mr-1" />
+                      Attempt {sessionInfo.attemptNumber}/3
+                    </Badge>
+                  )}
+                </div>
+              ) : (
+                <div className="flex items-center gap-3">
+                  <h2 className="text-lg">Mock Test #{testId}</h2>
+                  <Badge variant="secondary">Test</Badge>
+                </div>
+              )}
             </div>
             <div className="flex items-center gap-4">
               <div className={`flex items-center gap-2 px-4 py-2 rounded-lg ${
@@ -299,8 +572,8 @@ export default function MCQTestScreen({ user }: MCQTestScreenProps) {
                 <Clock className="w-5 h-5" />
                 <span className="text-lg">{formatTime(currentTest.timeLeft)}</span>
               </div>
-              <Button 
-                variant="destructive" 
+              <Button
+                variant="destructive"
                 onClick={() => setShowSubmitDialog(true)}
               >
                 Submit Test
@@ -319,7 +592,7 @@ export default function MCQTestScreen({ user }: MCQTestScreenProps) {
               <CardContent className="p-4">
                 <div className="flex items-center justify-between mb-2 text-sm">
                   <span>Progress</span>
-                  <span>{answeredCount} / {questions.length} answered</span>
+                  <span>{answeredCount} / {currentTest.questions.length} answered</span>
                 </div>
                 <Progress value={progressPercentage} className="h-2" />
               </CardContent>
@@ -334,7 +607,7 @@ export default function MCQTestScreen({ user }: MCQTestScreenProps) {
                       <Badge>Question {currentQuestion + 1}</Badge>
                       <Badge variant="outline">{question.subject_name || 'Test'}</Badge>
                     </div>
-                    <p className="text-xl">{question.question_text}</p>
+                    <p className="text-xl">{question.question}</p>
                   </div>
                   <Button
                     variant="ghost"
@@ -352,7 +625,14 @@ export default function MCQTestScreen({ user }: MCQTestScreenProps) {
                   onValueChange={(value) => handleAnswer(question.id, parseInt(value))}
                 >
                   <div className="space-y-3">
-                    {[question.option_a, question.option_b, question.option_c, question.option_d].map((option, idx) => (
+                    {(() => {
+                      console.log('🎨 Rendering question:', question);
+                      console.log('🎨 Question options:', question.options);
+                      console.log('🎨 Options type:', typeof question.options);
+                      console.log('🎨 Options length:', question.options?.length);
+                      return question.options.map((option, idx) => {
+                        console.log(`🎨 Rendering option ${idx}:`, option);
+                        return (
                       <div
                         key={idx}
                         className={`flex items-center space-x-3 p-4 border-2 rounded-lg cursor-pointer transition-all ${
@@ -371,7 +651,9 @@ export default function MCQTestScreen({ user }: MCQTestScreenProps) {
                           {option}
                         </Label>
                       </div>
-                    ))}
+                        );
+                      });
+                    })()}
                   </div>
                 </RadioGroup>
               </CardContent>
@@ -388,8 +670,8 @@ export default function MCQTestScreen({ user }: MCQTestScreenProps) {
                 Previous
               </Button>
               <Button
-                onClick={() => setCurrentQuestion(Math.min(questions.length - 1, currentQuestion + 1))}
-                disabled={currentQuestion === questions.length - 1}
+                onClick={() => setCurrentQuestion(Math.min(currentTest.questions.length - 1, currentQuestion + 1))}
+                disabled={currentQuestion === currentTest.questions.length - 1}
               >
                 Next
                 <ChevronRight className="w-4 h-4 ml-2" />
@@ -439,7 +721,7 @@ export default function MCQTestScreen({ user }: MCQTestScreenProps) {
                   </div>
                   <div className="flex items-center gap-2">
                     <Flag className="w-5 h-5 fill-red-500 text-red-500" />
-                    <span>Flagged ({flagged.size})</span>
+                    <span>Flagged ({currentTest.flagged.length})</span>
                   </div>
                 </div>
               </CardContent>
@@ -454,7 +736,7 @@ export default function MCQTestScreen({ user }: MCQTestScreenProps) {
           <AlertDialogHeader>
             <AlertDialogTitle>Submit Test?</AlertDialogTitle>
             <AlertDialogDescription>
-              You have answered {answeredCount} out of {mockQuestions.length} questions.
+              You have answered {answeredCount} out of {currentTest.questions.length} questions.
               {unansweredCount > 0 && (
                 <span className="block mt-2 text-yellow-600">
                   {unansweredCount} question(s) are still unanswered.

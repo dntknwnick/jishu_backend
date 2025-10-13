@@ -43,11 +43,14 @@ export default function ManageCourses({ user }: ManageCoursesProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [editingCourse, setEditingCourse] = useState<any>(null);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [expandedCourses, setExpandedCourses] = useState<Set<number>>(new Set());
   const [subjectModalCourse, setSubjectModalCourse] = useState<any>(null);
   const [isSubjectDialogOpen, setIsSubjectDialogOpen] = useState(false);
   const [courseSubjects, setCourseSubjects] = useState<{[key: number]: any[]}>({});
   const [loadingSubjects, setLoadingSubjects] = useState<Set<number>>(new Set());
+  const [editingSubject, setEditingSubject] = useState<any>(null);
+  const [isEditSubjectDialogOpen, setIsEditSubjectDialogOpen] = useState(false);
 
   const [subjectFormData, setSubjectFormData] = useState({
     subject_name: '',
@@ -62,6 +65,24 @@ export default function ManageCourses({ user }: ManageCoursesProps) {
     price: '',
     offerPrice: '',
     maxTokens: ''
+  });
+
+  const [editFormData, setEditFormData] = useState({
+    name: '',
+    description: '',
+    price: '',
+    offerPrice: '',
+    maxTokens: ''
+  });
+
+  const [editSubjectFormData, setEditSubjectFormData] = useState({
+    subject_name: '',
+    amount: '',
+    offer_amount: '',
+    max_tokens: '',
+    total_mock: '',
+    is_bundle: false,
+    is_deleted: false
   });
 
   useEffect(() => {
@@ -164,6 +185,45 @@ export default function ManageCourses({ user }: ManageCoursesProps) {
     setExpandedCourses(newExpanded);
   };
 
+  const handleEditCourse = (course: any) => {
+    setEditingCourse(course);
+    setEditFormData({
+      name: course.course_name || course.name || '',
+      description: course.description || '',
+      price: course.amount?.toString() || '',
+      offerPrice: course.offer_amount?.toString() || '',
+      maxTokens: course.max_tokens?.toString() || ''
+    });
+    setIsEditDialogOpen(true);
+  };
+
+  const handleUpdateCourse = async () => {
+    if (!editFormData.name?.trim()) {
+      toast.error('Course name is required');
+      return;
+    }
+
+    try {
+      await dispatch(updateCourse({
+        id: editingCourse.id,
+        data: {
+          course_name: editFormData.name.trim(),
+          description: editFormData.description.trim(),
+          amount: parseFloat(editFormData.price) || 0,
+          offer_amount: parseFloat(editFormData.offerPrice) || 0,
+          max_tokens: parseInt(editFormData.maxTokens) || 100
+        }
+      })).unwrap();
+
+      toast.success('Course updated successfully!');
+      setIsEditDialogOpen(false);
+      setEditingCourse(null);
+      setEditFormData({ name: '', description: '', price: '', offerPrice: '', maxTokens: '' });
+    } catch (error) {
+      toast.error('Failed to update course');
+    }
+  };
+
   const handleDeleteCourse = async (courseId: number) => {
     if (window.confirm('Are you sure you want to delete this course?')) {
       try {
@@ -171,6 +231,81 @@ export default function ManageCourses({ user }: ManageCoursesProps) {
         toast.success('Course deleted successfully!');
       } catch (error) {
         toast.error('Failed to delete course');
+      }
+    }
+  };
+
+  const handleEditSubject = (subject: any) => {
+    setEditingSubject(subject);
+    setEditSubjectFormData({
+      subject_name: subject.subject_name || '',
+      amount: subject.amount?.toString() || '',
+      offer_amount: subject.offer_amount?.toString() || '',
+      max_tokens: subject.max_tokens?.toString() || '',
+      total_mock: subject.total_mock?.toString() || '',
+      is_bundle: subject.is_bundle || false,
+      is_deleted: subject.is_deleted || false
+    });
+    setIsEditSubjectDialogOpen(true);
+  };
+
+  const handleUpdateSubject = async () => {
+    if (!editSubjectFormData.subject_name?.trim()) {
+      toast.error('Subject name is required');
+      return;
+    }
+
+    try {
+      await dispatch(updateSubject({
+        id: editingSubject.id,
+        data: {
+          subject_name: editSubjectFormData.subject_name.trim(),
+          amount: parseFloat(editSubjectFormData.amount) || 0,
+          offer_amount: parseFloat(editSubjectFormData.offer_amount) || 0,
+          max_tokens: parseInt(editSubjectFormData.max_tokens) || 100,
+          total_mock: parseInt(editSubjectFormData.total_mock) || 50,
+          is_bundle: editSubjectFormData.is_bundle,
+          is_deleted: editSubjectFormData.is_deleted
+        }
+      })).unwrap();
+
+      toast.success('Subject updated successfully!');
+      setIsEditSubjectDialogOpen(false);
+      setEditingSubject(null);
+
+      // Refresh the subjects for the course
+      if (editingSubject.exam_category_id) {
+        const subjects = await dispatch(fetchSubjects(editingSubject.exam_category_id)).unwrap();
+        setCourseSubjects(prev => ({
+          ...prev,
+          [editingSubject.exam_category_id]: subjects
+        }));
+      }
+    } catch (error) {
+      toast.error('Failed to update subject');
+    }
+  };
+
+  const handleSoftDeleteSubject = async (subject: any) => {
+    if (window.confirm(`Are you sure you want to soft delete "${subject.subject_name}"? This will hide it from users but keep the data.`)) {
+      try {
+        await dispatch(updateSubject({
+          id: subject.id,
+          data: { is_deleted: true }
+        })).unwrap();
+
+        toast.success('Subject soft deleted successfully!');
+
+        // Refresh the subjects for the course
+        if (subject.exam_category_id) {
+          const subjects = await dispatch(fetchSubjects(subject.exam_category_id)).unwrap();
+          setCourseSubjects(prev => ({
+            ...prev,
+            [subject.exam_category_id]: subjects
+          }));
+        }
+      } catch (error) {
+        toast.error('Failed to soft delete subject');
       }
     }
   };
@@ -405,6 +540,15 @@ export default function ManageCourses({ user }: ManageCoursesProps) {
                     <Button
                       variant="outline"
                       size="sm"
+                      onClick={() => handleEditCourse(course)}
+                      className="text-blue-600 hover:text-blue-700 border-blue-200 hover:border-blue-300"
+                    >
+                      <Edit2 className="w-4 h-4 mr-2" />
+                      Edit
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
                       onClick={() => handleDeleteCourse(course.id)}
                       className="text-red-600 hover:text-red-700 border-red-200 hover:border-red-300"
                     >
@@ -448,14 +592,43 @@ export default function ManageCourses({ user }: ManageCoursesProps) {
                           courseSubjects[course.id].map((subject: any) => (
                             <div key={subject.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                               <div className="flex-1">
-                                <h5 className="font-medium">{subject.subject_name}</h5>
+                                <div className="flex items-center gap-2">
+                                  <h5 className="font-medium">{subject.subject_name}</h5>
+                                  {subject.is_bundle && (
+                                    <span className="px-2 py-1 bg-purple-100 text-purple-700 text-xs rounded-md">Bundle</span>
+                                  )}
+                                  {subject.is_deleted && (
+                                    <span className="px-2 py-1 bg-red-100 text-red-700 text-xs rounded-md">Deleted</span>
+                                  )}
+                                </div>
                                 <div className="flex items-center gap-4 mt-1 text-sm text-gray-600">
                                   <span>₹{subject.amount || 0}</span>
                                   {subject.offer_amount && (
                                     <span className="text-green-600">Offer: ₹{subject.offer_amount}</span>
                                   )}
                                   <span>{subject.max_tokens || 100} tokens</span>
+                                  <span>{subject.total_mock || 50} tests</span>
                                 </div>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleEditSubject(subject)}
+                                  className="text-blue-600 hover:text-blue-700 border-blue-200 hover:border-blue-300"
+                                >
+                                  <Edit2 className="w-3 h-3" />
+                                </Button>
+                                {!subject.is_deleted && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handleSoftDeleteSubject(subject)}
+                                    className="text-orange-600 hover:text-orange-700 border-orange-200 hover:border-orange-300"
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                  </Button>
+                                )}
                               </div>
                             </div>
                           ))
@@ -536,6 +709,178 @@ export default function ManageCourses({ user }: ManageCoursesProps) {
                 Cancel
               </Button>
               <Button onClick={handleCreateSubject}>Create Subject</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit Course Dialog */}
+        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle>Edit Course</DialogTitle>
+              <DialogDescription>
+                Update course information and pricing.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-name">Course Name *</Label>
+                <Input
+                  id="edit-name"
+                  placeholder="Enter course name"
+                  value={editFormData.name}
+                  onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-description">Description</Label>
+                <Textarea
+                  id="edit-description"
+                  placeholder="Enter course description"
+                  value={editFormData.description}
+                  onChange={(e) => setEditFormData({ ...editFormData, description: e.target.value })}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-price">Price (₹)</Label>
+                  <Input
+                    id="edit-price"
+                    type="number"
+                    placeholder="999"
+                    value={editFormData.price}
+                    onChange={(e) => setEditFormData({ ...editFormData, price: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-offer-price">Offer Price (₹)</Label>
+                  <Input
+                    id="edit-offer-price"
+                    type="number"
+                    placeholder="699"
+                    value={editFormData.offerPrice}
+                    onChange={(e) => setEditFormData({ ...editFormData, offerPrice: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-max-tokens">Max AI Tokens</Label>
+                <Input
+                  id="edit-max-tokens"
+                  type="number"
+                  placeholder="100"
+                  value={editFormData.maxTokens}
+                  onChange={(e) => setEditFormData({ ...editFormData, maxTokens: e.target.value })}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => {
+                setIsEditDialogOpen(false);
+                setEditingCourse(null);
+                setEditFormData({ name: '', description: '', price: '', offerPrice: '', maxTokens: '' });
+              }}>
+                Cancel
+              </Button>
+              <Button onClick={handleUpdateCourse}>Update Course</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit Subject Dialog */}
+        <Dialog open={isEditSubjectDialogOpen} onOpenChange={setIsEditSubjectDialogOpen}>
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle>Edit Subject</DialogTitle>
+              <DialogDescription>
+                Update subject information, pricing, and settings.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-subject-name">Subject Name *</Label>
+                <Input
+                  id="edit-subject-name"
+                  placeholder="Enter subject name"
+                  value={editSubjectFormData.subject_name}
+                  onChange={(e) => setEditSubjectFormData({ ...editSubjectFormData, subject_name: e.target.value })}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-subject-amount">Price (₹)</Label>
+                  <Input
+                    id="edit-subject-amount"
+                    type="number"
+                    placeholder="299"
+                    value={editSubjectFormData.amount}
+                    onChange={(e) => setEditSubjectFormData({ ...editSubjectFormData, amount: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-subject-offer">Offer Price (₹)</Label>
+                  <Input
+                    id="edit-subject-offer"
+                    type="number"
+                    placeholder="199"
+                    value={editSubjectFormData.offer_amount}
+                    onChange={(e) => setEditSubjectFormData({ ...editSubjectFormData, offer_amount: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-subject-tokens">Max AI Tokens</Label>
+                  <Input
+                    id="edit-subject-tokens"
+                    type="number"
+                    placeholder="100"
+                    value={editSubjectFormData.max_tokens}
+                    onChange={(e) => setEditSubjectFormData({ ...editSubjectFormData, max_tokens: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-subject-tests">Total Mock Tests</Label>
+                  <Input
+                    id="edit-subject-tests"
+                    type="number"
+                    placeholder="50"
+                    value={editSubjectFormData.total_mock}
+                    onChange={(e) => setEditSubjectFormData({ ...editSubjectFormData, total_mock: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="edit-is-bundle"
+                  checked={editSubjectFormData.is_bundle}
+                  onChange={(e) => setEditSubjectFormData({ ...editSubjectFormData, is_bundle: e.target.checked })}
+                />
+                <Label htmlFor="edit-is-bundle">Is Bundle Package</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="edit-is-deleted"
+                  checked={editSubjectFormData.is_deleted}
+                  onChange={(e) => setEditSubjectFormData({ ...editSubjectFormData, is_deleted: e.target.checked })}
+                />
+                <Label htmlFor="edit-is-deleted">Soft Delete (Hide from users)</Label>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => {
+                setIsEditSubjectDialogOpen(false);
+                setEditingSubject(null);
+                setEditSubjectFormData({
+                  subject_name: '', amount: '', offer_amount: '', max_tokens: '',
+                  total_mock: '', is_bundle: false, is_deleted: false
+                });
+              }}>
+                Cancel
+              </Button>
+              <Button onClick={handleUpdateSubject}>Update Subject</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

@@ -58,7 +58,10 @@ const testsSlice = createSlice({
       state.error = null;
     },
     startTest: (state, action) => {
+      console.log('🔥 Redux startTest action called with:', action.payload);
       const { testId, questions, duration } = action.payload;
+      console.log('🔥 Setting currentTest with questions count:', questions.length);
+      console.log('🔥 Setting timeLeft to:', duration, 'type:', typeof duration);
       state.currentTest = {
         id: testId,
         questions,
@@ -67,13 +70,17 @@ const testsSlice = createSlice({
         timeLeft: duration,
         isActive: true,
       };
+      console.log('🔥 Redux state updated, currentTest.questions.length:', state.currentTest.questions.length);
+      console.log('🔥 Redux state updated, currentTest.timeLeft:', state.currentTest.timeLeft);
     },
     endTest: (state) => {
       state.currentTest.isActive = false;
     },
     answerQuestion: (state, action) => {
       const { questionId, answerIndex } = action.payload;
+      console.log('🔥 Redux answerQuestion:', { questionId, answerIndex });
       state.currentTest.answers[questionId] = answerIndex;
+      console.log('🔥 Updated answers:', state.currentTest.answers);
     },
     toggleFlag: (state, action) => {
       const questionId = action.payload;
@@ -84,8 +91,10 @@ const testsSlice = createSlice({
         state.currentTest.flagged.push(questionId);
       }
     },
-    updateTimer: (state, action) => {
-      state.currentTest.timeLeft = action.payload;
+    updateTimer: (state) => {
+      if (state.currentTest && state.currentTest.timeLeft > 0) {
+        state.currentTest.timeLeft -= 1;
+      }
     },
     submitTest: (state, action) => {
       const result = action.payload;

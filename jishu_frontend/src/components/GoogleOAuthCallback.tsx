@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner@2.0.3';
 import { useAppDispatch } from '../store';
@@ -12,9 +12,20 @@ export default function GoogleOAuthCallback({ onLogin }: GoogleOAuthCallbackProp
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
   const [searchParams] = useSearchParams();
+  const [isProcessing, setIsProcessing] = useState(false);
+  const hasProcessed = useRef(false);
 
   useEffect(() => {
+    // Prevent multiple executions
+    if (hasProcessed.current || isProcessing) {
+      return;
+    }
+
     const handleCallback = async () => {
+      // Mark as processing to prevent duplicate calls
+      hasProcessed.current = true;
+      setIsProcessing(true);
+
       const code = searchParams.get('code');
       const error = searchParams.get('error');
 
@@ -31,16 +42,25 @@ export default function GoogleOAuthCallback({ onLogin }: GoogleOAuthCallbackProp
       }
 
       try {
+        console.log('🔄 Processing Google OAuth callback with code:', code.substring(0, 20) + '...');
+
+        // Generate session ID to prevent duplicate OAuth calls
+        const sessionId = `oauth_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
         // Send the authorization code to our backend
         const response = await fetch('http://localhost:5000/api/auth/google/verify', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ code }),
+          body: JSON.stringify({
+            code,
+            session_id: sessionId
+          }),
         });
 
         const data = await response.json();
+        console.log('✅ Google OAuth response received:', data.success);
 
         if (data.success && data.data) {
           // Store tokens and user data
@@ -58,7 +78,7 @@ export default function GoogleOAuthCallback({ onLogin }: GoogleOAuthCallbackProp
           onLogin(data.data.user);
 
           toast.success('Successfully logged in with Google!');
-          
+
           // Navigate based on user role
           navigate(data.data.user.is_admin ? '/admin' : '/courses');
         } else {
@@ -69,11 +89,13 @@ export default function GoogleOAuthCallback({ onLogin }: GoogleOAuthCallbackProp
         console.error('Google OAuth callback error:', error);
         toast.error('Failed to complete Google OAuth');
         navigate('/auth');
+      } finally {
+        setIsProcessing(false);
       }
     };
 
     handleCallback();
-  }, [searchParams, navigate, dispatch, onLogin]);
+  }, []); // Remove dependencies to prevent re-execution
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 flex items-center justify-center p-4">

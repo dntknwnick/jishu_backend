@@ -208,73 +208,79 @@ export default function SubjectSelection({ user }: SubjectSelectionProps) {
           <p className="text-xl text-gray-600">Choose individual subjects or get the complete bundle</p>
         </div>
 
+        {/* Main Layout: Left Content + Right Cart Summary */}
         <div className="grid lg:grid-cols-3 gap-8">
-          {/* Subject Cards */}
-          <div className="lg:col-span-2 space-y-4">
-            {/* Bundle Offer Card - Show if bundle exists or if we have subjects for fallback */}
+          {/* Left Side - All Content */}
+          <div className="lg:col-span-2 space-y-8">
+            {/* Complete Bundle Section */}
             {(bundle || subjects.length > 0) && (
-              <Card className="border-2 border-purple-500 bg-gradient-to-br from-purple-50 to-pink-50">
-              <CardHeader>
-                <div className="flex items-start justify-between">
-                  <div>
-                    <div className="flex items-center gap-2 mb-2">
-                      <Zap className="w-5 h-5 text-purple-600" />
-                      <Badge className="bg-purple-600">Best Value</Badge>
+              <div>
+                <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
+                  <Zap className="w-6 h-6 text-purple-600" />
+                  Complete Bundle Package
+                </h2>
+                <Card className="border-2 border-purple-500 bg-gradient-to-br from-purple-50 to-pink-50">
+                  <CardHeader>
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <div className="flex items-center gap-2 mb-2">
+                          <Badge className="bg-purple-600">Best Value</Badge>
+                        </div>
+                        <CardTitle className="text-2xl">Complete Bundle</CardTitle>
+                        <CardDescription>All subjects included with 30% discount</CardDescription>
+                      </div>
                     </div>
-                    <CardTitle className="text-2xl">Complete Bundle</CardTitle>
-                    <CardDescription>All subjects included with 30% discount</CardDescription>
+                  </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex flex-wrap gap-2">
+                    {subjects.map((subject) => (
+                      <Badge key={subject.id} variant="secondary" className="text-sm">
+                        {getSubjectIcon(subject.subject_name)} {subject.subject_name}
+                      </Badge>
+                    ))}
                   </div>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex flex-wrap gap-2">
-                  {subjects.map((subject) => (
-                    <Badge key={subject.id} variant="secondary" className="text-sm">
-                      {getSubjectIcon(subject.subject_name)} {subject.subject_name}
-                    </Badge>
-                  ))}
-                </div>
-                
-                <div className="flex items-center gap-4">
-                  <div className="text-gray-500 line-through">₹{bundlePrice}</div>
-                  <div className="text-3xl text-purple-600">₹{bundleFinalPrice}</div>
-                  <Badge variant="destructive">Save ₹{bundleDiscount}</Badge>
-                </div>
 
-                <ul className="space-y-2">
-                  <li className="flex items-center gap-2 text-sm">
-                    <CheckCircle2 className="w-4 h-4 text-green-600" />
-                    <span>Access to all {bundle ? bundle.total_mock : subjects.reduce((sum, s) => sum + (s.total_mock || 50), 0)} mock tests</span>
-                  </li>
-                  <li className="flex items-center gap-2 text-sm">
-                    <CheckCircle2 className="w-4 h-4 text-green-600" />
-                    <span>Detailed performance analytics</span>
-                  </li>
-                  <li className="flex items-center gap-2 text-sm">
-                    <CheckCircle2 className="w-4 h-4 text-green-600" />
-                    <span>1 year validity</span>
-                  </li>
-                  <li className="flex items-center gap-2 text-sm">
-                    <CheckCircle2 className="w-4 h-4 text-green-600" />
-                    <span>AI chatbot support</span>
-                  </li>
-                </ul>
+                  <div className="flex items-center gap-4">
+                    <div className="text-gray-500 line-through">₹{bundlePrice}</div>
+                    <div className="text-3xl text-purple-600">₹{bundleFinalPrice}</div>
+                    <Badge variant="destructive">Save ₹{bundleDiscount}</Badge>
+                  </div>
 
-                <Button 
-                  size="lg" 
-                  className="w-full bg-gradient-to-r from-purple-600 to-pink-600"
-                  onClick={handleBundlePurchase}
-                >
-                  <ShoppingCart className="w-4 h-4 mr-2" />
-                  Purchase Bundle
-                </Button>
-              </CardContent>
-            </Card>
+                  <ul className="space-y-2">
+                    <li className="flex items-center gap-2 text-sm">
+                      <CheckCircle2 className="w-4 h-4 text-green-600" />
+                      <span>Access to all {bundle ? bundle.total_mock : subjects.reduce((sum, s) => sum + (s.total_mock || 50), 0)} mock tests</span>
+                    </li>
+                    <li className="flex items-center gap-2 text-sm">
+                      <CheckCircle2 className="w-4 h-4 text-green-600" />
+                      <span>Detailed performance analytics</span>
+                    </li>
+                    <li className="flex items-center gap-2 text-sm">
+                      <CheckCircle2 className="w-4 h-4 text-green-600" />
+                      <span>1 year validity</span>
+                    </li>
+                    <li className="flex items-center gap-2 text-sm">
+                      <CheckCircle2 className="w-4 h-4 text-green-600" />
+                      <span>AI chatbot support</span>
+                    </li>
+                  </ul>
+
+                  <Button
+                    size="lg"
+                    className="w-full bg-gradient-to-r from-purple-600 to-pink-600"
+                    onClick={handleBundlePurchase}
+                  >
+                    <ShoppingCart className="w-4 h-4 mr-2" />
+                    Purchase Bundle
+                  </Button>
+                </CardContent>
+              </Card>
+              </div>
             )}
 
-            {/* Individual Subjects */}
+            {/* Individual Subjects Section */}
             <div className="space-y-4">
-              <h3 className="text-xl">Or select individual subjects</h3>
+              <h2 className="text-2xl font-bold mb-4">Or select individual subjects</h2>
               {subjects.map((subject) => {
                 const price = getSubjectPrice(subject.subject_name);
                 const icon = getSubjectIcon(subject.subject_name);
@@ -322,7 +328,7 @@ export default function SubjectSelection({ user }: SubjectSelectionProps) {
             </div>
           </div>
 
-          {/* Cart Summary */}
+          {/* Right Side - Cart Summary */}
           <div className="lg:col-span-1">
             <Card className="sticky top-24">
               <CardHeader>
@@ -336,23 +342,23 @@ export default function SubjectSelection({ user }: SubjectSelectionProps) {
                 ) : (
                   <>
                     <div className="space-y-2">
-                      {course.subjects
+                      {subjects
                         .filter((s: any) => selectedSubjects.includes(s.id))
                         .map((subject: any) => (
                           <div key={subject.id} className="flex justify-between text-sm">
-                            <span>{subject.name}</span>
-                            <span>₹{subject.price}</span>
+                            <span>{subject.subject_name}</span>
+                            <span>₹{getSubjectPrice(subject.subject_name)}</span>
                           </div>
                         ))
                       }
                     </div>
                     <div className="border-t pt-4">
                       <div className="flex justify-between mb-4">
-                        <span>Total</span>
-                        <span className="text-2xl">₹{totalPrice}</span>
+                        <span className="font-semibold">Total</span>
+                        <span className="text-2xl font-bold">₹{totalPrice}</span>
                       </div>
-                      <Button 
-                        size="lg" 
+                      <Button
+                        size="lg"
                         className="w-full"
                         onClick={handlePurchase}
                       >
