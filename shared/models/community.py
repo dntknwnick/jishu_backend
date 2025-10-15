@@ -11,6 +11,7 @@ class BlogPost(db.Model):
     title = db.Column(db.String(255), nullable=False)
     content = db.Column(db.Text, nullable=False)
     tags = db.Column(db.String(500), nullable=True)  # comma-separated tags
+    image_url = db.Column(db.String(500), nullable=True)  # path to uploaded image
     likes_count = db.Column(db.Integer, default=0)
     comments_count = db.Column(db.Integer, default=0)
     is_featured = db.Column(db.Boolean, default=False)
@@ -30,6 +31,7 @@ class BlogPost(db.Model):
             'title': self.title,
             'content': self.content,
             'tags': self.tags.split(',') if self.tags else [],
+            'image_url': self.image_url,
             'likes_count': self.likes_count,
             'comments_count': self.comments_count,
             'is_featured': self.is_featured,

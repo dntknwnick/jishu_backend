@@ -5,6 +5,7 @@ import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Textarea } from '../ui/textarea';
+import { Checkbox } from '../ui/checkbox';
 
 import {
   Dialog,
@@ -30,7 +31,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAppDispatch, useAppSelector } from '../../store';
-import { fetchCourses, createCourse, updateCourse, deleteCourse, createSubject, fetchSubjects } from '../../store/slices/adminSlice';
+import { fetchCourses, createCourse, updateCourse, deleteCourse, createSubject, updateSubject, fetchSubjects } from '../../store/slices/adminSlice';
 
 interface ManageCoursesProps {
   user: any;
@@ -44,7 +45,7 @@ export default function ManageCourses({ user }: ManageCoursesProps) {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [editingCourse, setEditingCourse] = useState<any>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [expandedCourses, setExpandedCourses] = useState<Set<number>>(new Set());
+  const [expandedCourseId, setExpandedCourseId] = useState<number | null>(null);
   const [subjectModalCourse, setSubjectModalCourse] = useState<any>(null);
   const [isSubjectDialogOpen, setIsSubjectDialogOpen] = useState(false);
   const [courseSubjects, setCourseSubjects] = useState<{[key: number]: any[]}>({});
@@ -56,7 +57,9 @@ export default function ManageCourses({ user }: ManageCoursesProps) {
     subject_name: '',
     amount: '',
     offer_amount: '',
-    max_tokens: ''
+    max_tokens: '',
+    total_mock: '',
+    is_bundle: false
   });
 
   const [formData, setFormData] = useState({
@@ -90,8 +93,10 @@ export default function ManageCourses({ user }: ManageCoursesProps) {
   }, [dispatch, user]);
 
   const filteredCourses = courses.filter(course =>
-    course.course_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    course.name?.toLowerCase().includes(searchQuery.toLowerCase())
+    // Hide soft-deleted courses from active listings
+    !course.is_deleted &&
+    (course.course_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    course.name?.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
   const handleCreateCourse = async () => {
@@ -140,49 +145,54 @@ export default function ManageCourses({ user }: ManageCoursesProps) {
         subject_name: subjectFormData.subject_name,
         amount: parseFloat(subjectFormData.amount) || 0,
         offer_amount: parseFloat(subjectFormData.offer_amount) || 0,
-        max_tokens: parseInt(subjectFormData.max_tokens) || 100
+        max_tokens: parseInt(subjectFormData.max_tokens) || 100,
+        total_mock: parseInt(subjectFormData.total_mock) || 50,
+        is_bundle: subjectFormData.is_bundle
       };
       const newSubject = await dispatch(createSubject(subjectData)).unwrap();
       setCourseSubjects(prev => ({
         ...prev,
         [subjectModalCourse.id]: [...(prev[subjectModalCourse.id] || []), newSubject]
       }));
-      setSubjectFormData({ subject_name: '', amount: '', offer_amount: '', max_tokens: '' });
+      setSubjectFormData({ subject_name: '', amount: '', offer_amount: '', max_tokens: '', total_mock: '', is_bundle: false });
       setIsSubjectDialogOpen(false);
       setSubjectModalCourse(null);
       toast.success('Subject created successfully!');
-      setExpandedCourses(prev => new Set([...prev, subjectModalCourse.id]));
+      setExpandedCourseId(subjectModalCourse.id);
     } catch (error) {
       toast.error('Failed to create subject');
     }
   };
 
   const toggleCourseExpansion = async (courseId: number) => {
-    const newExpanded = new Set(expandedCourses);
-    if (newExpanded.has(courseId)) {
-      newExpanded.delete(courseId);
-    } else {
-      newExpanded.add(courseId);
-      if (!courseSubjects[courseId]) {
-        setLoadingSubjects(prev => new Set([...prev, courseId]));
-        try {
-          const subjects = await dispatch(fetchSubjects(courseId)).unwrap();
-          setCourseSubjects(prev => ({
-            ...prev,
-            [courseId]: subjects
-          }));
-        } catch (error) {
-          toast.error('Failed to load subjects');
-        } finally {
-          setLoadingSubjects(prev => {
-            const newSet = new Set(prev);
-            newSet.delete(courseId);
-            return newSet;
-          });
-        }
+    // If clicking on the already expanded course, collapse it
+    if (expandedCourseId === courseId) {
+      setExpandedCourseId(null);
+      return;
+    }
+
+    // Expand the new course (this automatically collapses any previously expanded course)
+    setExpandedCourseId(courseId);
+
+    // Load subjects if not already loaded
+    if (!courseSubjects[courseId]) {
+      setLoadingSubjects(prev => new Set([...prev, courseId]));
+      try {
+        const subjects = await dispatch(fetchSubjects(courseId)).unwrap();
+        setCourseSubjects(prev => ({
+          ...prev,
+          [courseId]: subjects
+        }));
+      } catch (error) {
+        toast.error('Failed to load subjects');
+      } finally {
+        setLoadingSubjects(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(courseId);
+          return newSet;
+        });
       }
     }
-    setExpandedCourses(newExpanded);
   };
 
   const handleEditCourse = (course: any) => {
@@ -231,6 +241,31 @@ export default function ManageCourses({ user }: ManageCoursesProps) {
         toast.success('Course deleted successfully!');
       } catch (error) {
         toast.error('Failed to delete course');
+      }
+    }
+  };
+
+  const handleSoftDeleteCourse = async (courseId: number) => {
+    if (window.confirm('Are you sure you want to soft delete this course? This will hide it from users but keep the data.')) {
+      try {
+        await dispatch(updateCourse({
+          id: courseId,
+          data: {
+            course_name: editingCourse.course_name || editingCourse.name,
+            description: editingCourse.description || '',
+            amount: editingCourse.amount || 0,
+            offer_amount: editingCourse.offer_amount || 0,
+            max_tokens: editingCourse.max_tokens || 100,
+            is_deleted: true
+          }
+        })).unwrap();
+
+        toast.success('Course soft deleted successfully!');
+        setIsEditDialogOpen(false);
+        setEditingCourse(null);
+        setEditFormData({ name: '', description: '', price: '', offerPrice: '', maxTokens: '' });
+      } catch (error) {
+        toast.error('Failed to soft delete course');
       }
     }
   };
@@ -431,7 +466,7 @@ export default function ManageCourses({ user }: ManageCoursesProps) {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-gray-600 mb-1">Total Courses</p>
-                  <p className="text-3xl">{courses.length}</p>
+                  <p className="text-3xl">{filteredCourses.length}</p>
                 </div>
                 <BookOpen className="w-10 h-10 text-blue-600" />
               </div>
@@ -442,7 +477,7 @@ export default function ManageCourses({ user }: ManageCoursesProps) {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-gray-600 mb-1">Total Students</p>
-                  <p className="text-3xl">{courses.reduce((sum, c) => sum + (c.students || 0), 0).toLocaleString()}</p>
+                  <p className="text-3xl">{filteredCourses.reduce((sum, c) => sum + (c.students || 0), 0).toLocaleString()}</p>
                 </div>
                 <Users className="w-10 h-10 text-green-600" />
               </div>
@@ -453,7 +488,7 @@ export default function ManageCourses({ user }: ManageCoursesProps) {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-gray-600 mb-1">Total Revenue</p>
-                  <p className="text-3xl">₹{courses.reduce((sum, c) => sum + (c.amount || 0), 0).toLocaleString()}</p>
+                  <p className="text-3xl">₹{filteredCourses.reduce((sum, c) => sum + (c.amount || 0), 0).toLocaleString()}</p>
                 </div>
                 <DollarSign className="w-10 h-10 text-purple-600" />
               </div>
@@ -567,7 +602,7 @@ export default function ManageCourses({ user }: ManageCoursesProps) {
                         onClick={() => toggleCourseExpansion(course.id)}
                         className="gap-2"
                       >
-                        {expandedCourses.has(course.id) ? (
+                        {expandedCourseId === course.id ? (
                           <>
                             <ChevronDown className="w-4 h-4" />
                             Hide Subjects
@@ -581,7 +616,7 @@ export default function ManageCourses({ user }: ManageCoursesProps) {
                       </Button>
                     </div>
 
-                    {expandedCourses.has(course.id) && (
+                    {expandedCourseId === course.id && (
                       <div className="space-y-2">
                         {loadingSubjects.has(course.id) ? (
                           <div className="flex items-center justify-center py-6">
@@ -667,7 +702,7 @@ export default function ManageCourses({ user }: ManageCoursesProps) {
                   onChange={(e) => setSubjectFormData({ ...subjectFormData, subject_name: e.target.value })}
                 />
               </div>
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="amount">Regular Price (₹)</Label>
                   <Input
@@ -688,6 +723,8 @@ export default function ManageCourses({ user }: ManageCoursesProps) {
                     onChange={(e) => setSubjectFormData({ ...subjectFormData, offer_amount: e.target.value })}
                   />
                 </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="max_tokens">Max AI Tokens</Label>
                   <Input
@@ -698,13 +735,33 @@ export default function ManageCourses({ user }: ManageCoursesProps) {
                     onChange={(e) => setSubjectFormData({ ...subjectFormData, max_tokens: e.target.value })}
                   />
                 </div>
+                <div className="space-y-2">
+                  <Label htmlFor="total_mock">Total Mock Tests</Label>
+                  <Input
+                    id="total_mock"
+                    type="number"
+                    placeholder="50"
+                    value={subjectFormData.total_mock}
+                    onChange={(e) => setSubjectFormData({ ...subjectFormData, total_mock: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="is_bundle"
+                  checked={subjectFormData.is_bundle}
+                  onCheckedChange={(checked) => setSubjectFormData({ ...subjectFormData, is_bundle: checked as boolean })}
+                />
+                <Label htmlFor="is_bundle" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                  Is Bundle (Multiple subjects package)
+                </Label>
               </div>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => {
                 setIsSubjectDialogOpen(false);
                 setSubjectModalCourse(null);
-                setSubjectFormData({ subject_name: '', amount: '', offer_amount: '', max_tokens: '' });
+                setSubjectFormData({ subject_name: '', amount: '', offer_amount: '', max_tokens: '', total_mock: '', is_bundle: false });
               }}>
                 Cancel
               </Button>
@@ -774,15 +831,25 @@ export default function ManageCourses({ user }: ManageCoursesProps) {
                 />
               </div>
             </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => {
-                setIsEditDialogOpen(false);
-                setEditingCourse(null);
-                setEditFormData({ name: '', description: '', price: '', offerPrice: '', maxTokens: '' });
-              }}>
-                Cancel
+            <DialogFooter className="flex justify-between">
+              <Button
+                variant="destructive"
+                onClick={() => handleSoftDeleteCourse(editingCourse?.id)}
+                className="mr-auto"
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                Soft Delete Course
               </Button>
-              <Button onClick={handleUpdateCourse}>Update Course</Button>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => {
+                  setIsEditDialogOpen(false);
+                  setEditingCourse(null);
+                  setEditFormData({ name: '', description: '', price: '', offerPrice: '', maxTokens: '' });
+                }}>
+                  Cancel
+                </Button>
+                <Button onClick={handleUpdateCourse}>Update Course</Button>
+              </div>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -851,22 +918,24 @@ export default function ManageCourses({ user }: ManageCoursesProps) {
                 </div>
               </div>
               <div className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
+                <Checkbox
                   id="edit-is-bundle"
                   checked={editSubjectFormData.is_bundle}
-                  onChange={(e) => setEditSubjectFormData({ ...editSubjectFormData, is_bundle: e.target.checked })}
+                  onCheckedChange={(checked) => setEditSubjectFormData({ ...editSubjectFormData, is_bundle: checked as boolean })}
                 />
-                <Label htmlFor="edit-is-bundle">Is Bundle Package</Label>
+                <Label htmlFor="edit-is-bundle" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                  Is Bundle Package
+                </Label>
               </div>
               <div className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
+                <Checkbox
                   id="edit-is-deleted"
                   checked={editSubjectFormData.is_deleted}
-                  onChange={(e) => setEditSubjectFormData({ ...editSubjectFormData, is_deleted: e.target.checked })}
+                  onCheckedChange={(checked) => setEditSubjectFormData({ ...editSubjectFormData, is_deleted: checked as boolean })}
                 />
-                <Label htmlFor="edit-is-deleted">Soft Delete (Hide from users)</Label>
+                <Label htmlFor="edit-is-deleted" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                  Soft Delete (Hide from users)
+                </Label>
               </div>
             </div>
             <DialogFooter>

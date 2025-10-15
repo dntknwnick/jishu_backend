@@ -72,11 +72,12 @@ class ExamCategoryPurchase(db.Model):
         elif self.purchase_type == 'multiple_subjects':
             return self.subjects_included or []
         elif self.purchase_type == 'full_bundle':
-            # Return all subjects for this course
+            # Return all subjects for this course, excluding bundle subjects (is_bundle=True)
             from .course import ExamCategorySubject
             subjects = ExamCategorySubject.query.filter_by(
                 exam_category_id=self.exam_category_id,
-                is_deleted=False
+                is_deleted=False,
+                is_bundle=False  # Exclude bundle subjects - they're containers, not actual subjects
             ).all()
             return [s.id for s in subjects]
         return []
@@ -110,6 +111,10 @@ class ExamCategoryQuestion(db.Model):
     ai_model_used = db.Column(db.String(100), nullable=True)  # e.g., 'llama3.2:1b'
     difficulty_level = db.Column(db.Enum('easy', 'medium', 'hard'), default='medium')
     source_content = db.Column(db.Text, nullable=True)  # Original content used for generation
+
+    # Chunked generation fields
+    generation_batch_id = db.Column(db.String(50), nullable=True)  # UUID for batch tracking
+    batch_sequence = db.Column(db.Integer, nullable=True)  # Order within batch (1, 2, 3, etc.)
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -248,8 +253,11 @@ class MockTestAttempt(db.Model):
     course = db.relationship('ExamCategory', backref='mock_test_attempts')
     subject = db.relationship('ExamCategorySubject', backref='mock_test_attempts')
 
-    # Unique constraint: one test card per test number per purchase
-    __table_args__ = (db.UniqueConstraint('purchase_id', 'test_number', name='unique_test_per_purchase'),)
+    # Unique constraint: one test card per test number per subject per purchase
+    # Note: We have both old and new constraints for compatibility during migration
+    __table_args__ = (
+        db.UniqueConstraint('purchase_id', 'subject_id', 'test_number', name='unique_test_per_purchase_subject'),
+    )
 
     @property
     def is_available(self):
@@ -373,3 +381,6 @@ class TestAnswer(db.Model):
 
     def __repr__(self):
         return f'<TestAnswer {self.id}>'
+
+
+

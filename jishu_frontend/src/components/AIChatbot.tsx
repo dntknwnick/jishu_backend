@@ -5,10 +5,10 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Badge } from './ui/badge';
 import { Avatar, AvatarFallback } from './ui/avatar';
-import { 
-  Send, 
-  Bot, 
-  User, 
+import {
+  Send,
+  Bot,
+  User,
   Sparkles,
   BookOpen,
   Calculator,
@@ -16,6 +16,7 @@ import {
   Atom,
   Lightbulb
 } from 'lucide-react';
+import { API_BASE_URL } from '../config/environment';
 
 interface AIChatbotProps {
   user: any;
@@ -79,7 +80,7 @@ export default function AIChatbot({ user }: AIChatbotProps) {
         const token = localStorage.getItem('access_token');
         if (!token) return;
 
-        const response = await fetch('http://localhost:5000/api/ai/token-status', {
+        const response = await fetch(`${API_BASE_URL}/api/ai/token-status`, {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
@@ -156,7 +157,7 @@ export default function AIChatbot({ user }: AIChatbotProps) {
         throw new Error('No authentication token found');
       }
 
-      const response = await fetch('http://localhost:5000/api/ai/chat', {
+      const response = await fetch(`${API_BASE_URL}/api/ai/chat`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

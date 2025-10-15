@@ -130,6 +130,7 @@ export const updateCourse = createAsyncThunk(
         amount?: number;
         offer_amount?: number;
         max_tokens?: number;
+        is_deleted?: boolean;
       }
     },
     { rejectWithValue }

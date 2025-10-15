@@ -1,0 +1,24 @@
+{
+  "last_indexed": {
+    "mathematics": "2025-10-15T22:30:53.762676"
+  },
+  "file_checksums": {
+    "mathematics\\jemh1a1_merged.pdf": "24c0f9567d038593ee959c0d189cff2d",
+    "mathematics\\kemh1a1_merged.pdf": "53b118aa132621183482f3b65808109b",
+    "mathematics\\lemh1a1_merged.pdf": "2c3e9b16a211b6b75a6cc20605124541",
+    "mathematics\\lemh2an_merged.pdf": "16ffca600374ee4075ec0698631e46c6"
+  },
+  "collection_info": {
+    "mathematics": {
+      "collection_name": "subject_mathematics",
+      "total_chunks": 1884,
+      "processed_files": [
+        "jemh1a1_merged.pdf",
+        "kemh1a1_merged.pdf",
+        "lemh1a1_merged.pdf",
+        "lemh2an_merged.pdf"
+      ],
+      "last_updated": "2025-10-15T22:30:53.762689"
+    }
+  }
+}

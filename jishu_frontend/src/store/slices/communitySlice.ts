@@ -27,7 +27,8 @@ const transformPost = (post: any): BlogPost => {
     timeAgo,
     likes: post.likes_count,
     comments: post.comments_count,
-    views: Math.floor(Math.random() * 1000) + 100 // Mock views for now
+    views: Math.floor(Math.random() * 1000) + 100, // Mock views for now
+    image: post.image_url // Map image_url to image for backward compatibility
   };
 };
 
@@ -51,7 +52,7 @@ export const fetchPosts = createAsyncThunk(
 export const createPost = createAsyncThunk(
   'community/createPost',
   async (
-    data: { title: string; content: string; tags: string[] },
+    data: { title: string; content: string; tags: string[]; image?: File },
     { rejectWithValue }
   ) => {
     try {
@@ -78,6 +79,21 @@ export const likePost = createAsyncThunk(
         return rejectWithValue(error.message);
       }
       return rejectWithValue('Failed to like post');
+    }
+  }
+);
+
+export const addComment = createAsyncThunk(
+  'community/addComment',
+  async ({ postId, content }: { postId: number; content: string }, { rejectWithValue }) => {
+    try {
+      const response = await communityApi.addComment(postId, content);
+      return { postId, comment: response.data };
+    } catch (error) {
+      if (error instanceof ApiError) {
+        return rejectWithValue(error.message);
+      }
+      return rejectWithValue('Failed to add comment');
     }
   }
 );
@@ -155,6 +171,26 @@ const communitySlice = createSlice({
         }
       })
       .addCase(likePost.rejected, (state, action) => {
+        state.error = action.payload as string;
+      })
+
+      // Add comment
+      .addCase(addComment.fulfilled, (state, action) => {
+        const { postId, comment } = action.payload;
+        const post = state.posts.find(p => p.id === postId);
+        if (post) {
+          post.comments_count += 1;
+          // Add comment to recent_comments if it exists
+          if (post.recent_comments) {
+            post.recent_comments.unshift(comment);
+            // Keep only the 3 most recent comments
+            if (post.recent_comments.length > 3) {
+              post.recent_comments = post.recent_comments.slice(0, 3);
+            }
+          }
+        }
+      })
+      .addCase(addComment.rejected, (state, action) => {
         state.error = action.payload as string;
       })
       

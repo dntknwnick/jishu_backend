@@ -64,10 +64,18 @@ export default function MCQTestScreen({ user }: MCQTestScreenProps) {
 
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [showSubmitDialog, setShowSubmitDialog] = useState(false);
-  const [showInstructions, setShowInstructions] = useState(true);
+  // Determine if we should show instructions based on attempt type
+  const shouldShowInstructions = !sessionInfo?.isReAttempt; // Skip instructions for re-attempts
+  const [showInstructions, setShowInstructions] = useState(shouldShowInstructions);
   const [autoSubmit, setAutoSubmit] = useState(false);
   const [isLoadingQuestions, setIsLoadingQuestions] = useState(false);
   const [hasLoadedSession, setHasLoadedSession] = useState(false);
+
+  // Chunked generation state
+  const [generationId, setGenerationId] = useState<string | null>(null);
+  const [generationProgress, setGenerationProgress] = useState<any>(null);
+  const [isUsingChunkedGeneration, setIsUsingChunkedGeneration] = useState(false);
+  const [progressPollingInterval, setProgressPollingInterval] = useState<NodeJS.Timeout | null>(null);
 
   // Debug: Check Redux state (after state declarations)
   console.log('🔍 Redux State Debug:');
@@ -76,15 +84,33 @@ export default function MCQTestScreen({ user }: MCQTestScreenProps) {
   console.log('- currentTest.timeLeft:', currentTest?.timeLeft, 'type:', typeof currentTest?.timeLeft);
   console.log('- showInstructions:', showInstructions);
   console.log('- isLoadingQuestions:', isLoadingQuestions);
+  console.log('- sessionInfo?.isReAttempt:', sessionInfo?.isReAttempt);
+  console.log('- shouldShowInstructions:', shouldShowInstructions);
 
   useEffect(() => {
     if (sessionInfo?.sessionId && !hasLoadedSession) {
-      // New test card flow - load questions immediately when component mounts
-      // This will happen during the instructions phase
-      loadTestSession();
+      // New test card flow - check if re-attempt or first attempt
+      if (sessionInfo.isReAttempt) {
+        // Re-attempt: Use existing flow (questions already exist)
+        console.log('🔄 Initializing re-attempt flow');
+        loadTestSession();
+      } else {
+        // First attempt: Use chunked generation
+        console.log('🔄 Initializing chunked generation flow');
+        startChunkedGeneration(undefined, sessionInfo.sessionId);
+        setHasLoadedSession(true);
+      }
     } else if (testId && !hasLoadedSession) {
-      // Legacy flow - only load once
-      startTestAttempt();
+      // Legacy flow - use chunked generation for new tests
+      console.log('🔄 Initializing legacy chunked generation flow');
+      const subjectId = parseInt(testId);
+      // Start test attempt first, then use chunked generation
+      startLegacyChunkedFlow(subjectId);
+    } else if (!sessionInfo?.sessionId && !testId) {
+      // No valid test identifier - redirect to results
+      console.log('❌ No valid test identifier found, redirecting to results');
+      toast.error('Invalid test session. Please start a new test.');
+      navigate('/results');
     }
   }, [testId, sessionInfo, hasLoadedSession]);
 
@@ -99,10 +125,10 @@ export default function MCQTestScreen({ user }: MCQTestScreenProps) {
     setHasLoadedSession(true);
     try {
 
-      // Generate questions using the new AI-powered endpoint
-      console.log('📡 Calling AI generation API...');
-      const questionsResponse = await userTestsApi.generateTestQuestions(sessionInfo.sessionId);
-      console.log('✅ AI Generation Response:', questionsResponse);
+      // Use the proper test session endpoint for new test card system
+      console.log('📡 Calling test session questions API for session:', sessionInfo.sessionId);
+      const questionsResponse = await userTestsApi.getTestQuestions(sessionInfo.sessionId);
+      console.log('✅ Test Session Response:', questionsResponse);
 
       const generatedQuestions = questionsResponse.data.questions;
       console.log('📝 AI Generated Questions Count:', generatedQuestions.length);
@@ -164,9 +190,14 @@ export default function MCQTestScreen({ user }: MCQTestScreenProps) {
 
       console.log('✅ Questions loaded successfully!');
 
-      // Show re-attempt notification if applicable
+      // Handle navigation based on attempt type
       if (sessionInfo.isReAttempt) {
+        // Re-attempt: Skip instructions and go directly to test
+        setShowInstructions(false);
         toast.info(`This is attempt ${sessionInfo.attemptNumber}/3. Questions are reused from your first attempt.`);
+      } else {
+        // First attempt: Show instructions (already set by default)
+        toast.success('Questions generated successfully! Review the instructions and start your test.');
       }
 
     } catch (error) {
@@ -180,6 +211,15 @@ export default function MCQTestScreen({ user }: MCQTestScreenProps) {
   };
 
   const startTestAttempt = async () => {
+    if (hasLoadedSession) {
+      console.log('❌ Skipping startTestAttempt: already loaded');
+      return;
+    }
+
+    console.log('🚀 Starting legacy test attempt for subject:', testId);
+    setIsLoadingQuestions(true);
+    setHasLoadedSession(true);
+
     try {
       const subjectId = parseInt(testId!);
       const purchaseIdNum = purchaseId ? parseInt(purchaseId) : undefined;
@@ -187,6 +227,7 @@ export default function MCQTestScreen({ user }: MCQTestScreenProps) {
       // Check if we already have an active test for this subject
       if (currentTest.isActive && currentTest.questions.length > 0) {
         console.log('Test already active with questions, skipping generation');
+        setIsLoadingQuestions(false);
         return;
       }
 
@@ -213,15 +254,168 @@ export default function MCQTestScreen({ user }: MCQTestScreenProps) {
       dispatch(startTest({
         testId: testAttemptId.toString(),
         questions: formattedQuestions,
-        timeLimit: 3600 // 60 minutes
+        duration: 3600 // 60 minutes (use 'duration' for consistency)
       }));
+
+      console.log('✅ Legacy test started successfully!');
+      toast.success('Questions generated successfully! Review the instructions and start your test.');
 
     } catch (error) {
       console.error('Failed to start test:', error);
       toast.error('Failed to start test. Please try again.');
+      setHasLoadedSession(false); // Reset on error so user can retry
+      navigate('/results');
+    } finally {
+      setIsLoadingQuestions(false);
+    }
+  };
+
+  // Chunked MCQ Generation Functions
+  const startChunkedGeneration = async (testAttemptId?: number, sessionId?: number) => {
+    try {
+      console.log('🚀 Starting chunked MCQ generation');
+      setIsLoadingQuestions(true);
+      setIsUsingChunkedGeneration(true);
+
+      const response = await userTestsApi.startChunkedGeneration({
+        test_attempt_id: testAttemptId,
+        session_id: sessionId
+      });
+
+      if (!response.data.success) {
+        throw new Error(response.data.error || 'Failed to start chunked generation');
+      }
+
+      const { generation_id, initial_questions, progress, background_generation_started } = response.data;
+
+      setGenerationId(generation_id);
+      setGenerationProgress(progress);
+
+      // Start the test with initial questions
+      const formattedQuestions = initial_questions.map((q: any) => ({
+        id: q.id,
+        question: q.question,
+        options: [q.options.A, q.options.B, q.options.C, q.options.D],
+        correct_answer: q.correct_answer,
+        explanation: q.explanation
+      }));
+
+      dispatch(startTest({
+        testId: (testAttemptId || sessionId)?.toString() || 'chunked',
+        questions: formattedQuestions,
+        duration: 3600
+      }));
+
+      // Navigate to instructions immediately with initial questions
+      setShowInstructions(true);
+      setIsLoadingQuestions(false);
+
+      // Start polling for progress if background generation is running
+      if (background_generation_started) {
+        startProgressPolling(generation_id);
+      }
+
+      toast.success(`Initial ${initial_questions.length} questions ready! More questions loading in background.`);
+
+    } catch (error) {
+      console.error('Failed to start chunked generation:', error);
+      toast.error('Failed to start test. Please try again.');
+      setIsLoadingQuestions(false);
+      setIsUsingChunkedGeneration(false);
       navigate('/results');
     }
   };
+
+  const startProgressPolling = (genId: string) => {
+    if (progressPollingInterval) {
+      clearInterval(progressPollingInterval);
+    }
+
+    const interval = setInterval(async () => {
+      try {
+        const response = await userTestsApi.getGenerationProgress(genId);
+
+        if (response.data.success) {
+          const { progress, questions, is_complete, has_error, can_use_partial } = response.data;
+          setGenerationProgress(progress);
+
+          // Update questions in Redux if we have new ones
+          if (questions.length > currentTest.questions.length) {
+            const formattedQuestions = questions.map((q: any) => ({
+              id: q.id,
+              question: q.question,
+              options: [q.options.A, q.options.B, q.options.C, q.options.D],
+              correct_answer: q.correct_answer,
+              explanation: q.explanation
+            }));
+
+            // Update the test with new questions
+            dispatch(startTest({
+              testId: currentTest.id,
+              questions: formattedQuestions,
+              duration: currentTest.timeLeft
+            }));
+          }
+
+          // Handle completion or errors
+          if (is_complete) {
+            clearInterval(interval);
+            setProgressPollingInterval(null);
+            toast.success('All questions loaded successfully!');
+          } else if (has_error) {
+            clearInterval(interval);
+            setProgressPollingInterval(null);
+
+            if (can_use_partial) {
+              toast.warning(`Question generation encountered an issue, but you can continue with ${questions.length} questions available.`);
+            } else {
+              toast.error('Question generation failed. Please refresh and try again.');
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error polling progress:', error);
+        // Continue polling despite errors, but limit retries
+      }
+    }, 3000); // Poll every 3 seconds
+
+    setProgressPollingInterval(interval);
+  };
+
+
+
+  // Legacy chunked flow - start test attempt then use chunked generation
+  const startLegacyChunkedFlow = async (subjectId: number) => {
+    try {
+      setIsLoadingQuestions(true);
+      setHasLoadedSession(true);
+
+      const purchaseIdNum = purchaseId ? parseInt(purchaseId) : undefined;
+
+      // Start test attempt first
+      const startResponse = await userTestsApi.startTest(subjectId, purchaseIdNum);
+      const testAttemptId = startResponse.data.test_attempt_id;
+
+      // Then use chunked generation
+      await startChunkedGeneration(testAttemptId, undefined);
+
+    } catch (error) {
+      console.error('Failed to start legacy chunked flow:', error);
+      toast.error('Failed to start test. Please try again.');
+      setIsLoadingQuestions(false);
+      setHasLoadedSession(false);
+      navigate('/results');
+    }
+  };
+
+  // Cleanup polling on unmount
+  useEffect(() => {
+    return () => {
+      if (progressPollingInterval) {
+        clearInterval(progressPollingInterval);
+      }
+    };
+  }, [progressPollingInterval]);
 
   useEffect(() => {
     if (autoSubmit && currentTest) {
@@ -334,13 +528,29 @@ export default function MCQTestScreen({ user }: MCQTestScreenProps) {
                 <Loader2 className="w-12 h-12 animate-spin text-blue-600" />
               </div>
               <div className="space-y-2">
-                <h3 className="text-xl font-semibold">Generating Test Questions</h3>
+                <h3 className="text-xl font-semibold">
+                  {isUsingChunkedGeneration ? 'Preparing Your Test' : 'Generating Test Questions'}
+                </h3>
                 <p className="text-gray-600">
                   {sessionInfo?.isReAttempt
                     ? 'Loading your previous questions...'
+                    : isUsingChunkedGeneration
+                    ? 'Generating initial questions to get you started...'
                     : 'Creating new questions for your test...'}
                 </p>
-                <p className="text-sm text-gray-500">This may take a few moments</p>
+                {isUsingChunkedGeneration && generationProgress ? (
+                  <div className="space-y-2">
+                    <Progress
+                      value={Math.min(generationProgress.progress_percentage, 100)}
+                      className="w-full"
+                    />
+                    <p className="text-sm text-gray-500">
+                      {generationProgress.questions_generated_count} of {generationProgress.total_questions_needed} questions ready
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-500">This may take a few moments</p>
+                )}
               </div>
               {sessionInfo && (
                 <div className="pt-4 border-t">
@@ -439,19 +649,61 @@ export default function MCQTestScreen({ user }: MCQTestScreenProps) {
                   </div>
                 </div>
               ) : currentTest?.questions?.length > 0 && (
-                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-5 h-5 bg-green-600 rounded-full flex items-center justify-center">
-                      <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                      </svg>
+                <div className={`border rounded-lg p-4 ${
+                  isUsingChunkedGeneration && generationProgress?.generation_status !== 'completed'
+                    ? 'bg-blue-50 border-blue-200'
+                    : 'bg-green-50 border-green-200'
+                }`}>
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3">
+                      {isUsingChunkedGeneration && generationProgress?.generation_status !== 'completed' ? (
+                        <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
+                      ) : (
+                        <div className="w-5 h-5 bg-green-600 rounded-full flex items-center justify-center">
+                          <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                          </svg>
+                        </div>
+                      )}
+                      <div className="flex-1">
+                        <h4 className={`font-medium ${
+                          isUsingChunkedGeneration && generationProgress?.generation_status !== 'completed'
+                            ? 'text-blue-900'
+                            : 'text-green-900'
+                        }`}>
+                          {isUsingChunkedGeneration && generationProgress?.generation_status !== 'completed'
+                            ? 'Questions Loading...'
+                            : 'Test Ready!'}
+                        </h4>
+                        <p className={`text-sm ${
+                          isUsingChunkedGeneration && generationProgress?.generation_status !== 'completed'
+                            ? 'text-blue-700'
+                            : 'text-green-700'
+                        }`}>
+                          {isUsingChunkedGeneration && generationProgress ? (
+                            <>
+                              {generationProgress.questions_generated_count} of {generationProgress.total_questions_needed} questions ready
+                              {generationProgress.generation_status !== 'completed' && ' - More questions loading in background'}
+                            </>
+                          ) : (
+                            `${currentTest.questions.length} questions have been prepared for your test.`
+                          )}
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <h4 className="font-medium text-green-900">Test Ready!</h4>
-                      <p className="text-sm text-green-700">
-                        {currentTest.questions.length} questions have been prepared for your test.
-                      </p>
-                    </div>
+
+                    {isUsingChunkedGeneration && generationProgress && generationProgress.generation_status !== 'completed' && (
+                      <div className="space-y-2">
+                        <Progress
+                          value={Math.min(generationProgress.progress_percentage, 100)}
+                          className="w-full h-2"
+                        />
+                        <p className="text-xs text-blue-600">
+                          You can start the test now with {currentTest.questions.length} questions.
+                          Remaining questions will be available as you progress.
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}

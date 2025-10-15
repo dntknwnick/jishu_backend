@@ -79,25 +79,55 @@ export default function MCQGenerator({ user }: MCQGeneratorProps) {
       setLoading(true);
       setQuestions([]);
 
-      const response = await mcqGenerationApi.generateFromPDFs({
+      // Try optimized approach first
+      const startTime = Date.now();
+      const response = await mcqGenerationApi.generateOptimized({
         num_questions: numQuestionsInt,
         subject_name: subject.trim(),
         difficulty: 'hard', // Always generate hard questions
         save_to_database: saveToDatabase,
       });
 
+      const generationTime = (Date.now() - startTime) / 1000;
+
       if (response.data.success && response.data.questions) {
         setQuestions(response.data.questions);
-        toast.success(`Generated ${response.data.questions.length} hard questions from ${response.data.total_pdfs_processed || 0} PDF files!`);
+        const timeDisplay = generationTime < 30 ? `⚡ ${generationTime.toFixed(1)}s` : `🐌 ${generationTime.toFixed(1)}s`;
+        toast.success(`Generated ${response.data.questions.length} questions in ${timeDisplay}!`, {
+          description: `Using ${response.data.method || 'optimized'} approach with ${response.data.sources_used?.length || 0} sources`
+        });
       } else {
-        toast.error('Failed to generate questions from PDFs', {
+        toast.error('Failed to generate questions', {
           description: response.data.error || 'Unknown error occurred'
         });
       }
     } catch (error: any) {
-      toast.error('Failed to generate MCQ from PDFs', {
-        description: error.message || 'Unknown error occurred'
-      });
+      console.warn('Optimized MCQ generation failed, trying fallback:', error);
+
+      // Fallback to legacy method if optimized fails
+      try {
+        toast.info('Trying alternative approach...', { duration: 2000 });
+
+        const fallbackResponse = await mcqGenerationApi.generateFromPDFs({
+          num_questions: numQuestionsInt,
+          subject_name: subject.trim(),
+          difficulty: 'hard',
+          save_to_database: saveToDatabase,
+        });
+
+        if (fallbackResponse.data.success && fallbackResponse.data.questions) {
+          setQuestions(fallbackResponse.data.questions);
+          toast.success(`Generated ${fallbackResponse.data.questions.length} questions using fallback method!`, {
+            description: 'Optimized approach unavailable, used legacy method'
+          });
+        } else {
+          throw new Error(fallbackResponse.data.error || 'Fallback method also failed');
+        }
+      } catch (fallbackError: any) {
+        toast.error('Failed to generate MCQ questions', {
+          description: fallbackError.message || 'Both optimized and fallback methods failed'
+        });
+      }
     } finally {
       setLoading(false);
     }

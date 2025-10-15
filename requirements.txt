@@ -21,6 +21,13 @@ numpy==1.24.3
 torch==2.0.1
 transformers==4.35.2
 
+# LangChain dependencies for vector store optimization
+langchain-community
+langchain-ollama
+faiss-cpu
+pypdf
+tiktoken
+
 # Testing dependencies
 pytest==7.4.3
 pytest-flask==1.3.0

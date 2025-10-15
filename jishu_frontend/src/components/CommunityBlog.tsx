@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
 import Header from './Header';
 import { Card, CardContent, CardHeader } from './ui/card';
 import { Button } from './ui/button';
@@ -15,7 +14,10 @@ import {
   TrendingUp,
   Clock,
   Eye,
-  Loader2
+  Loader2,
+  Send,
+  Image as ImageIcon,
+  Paperclip
 } from 'lucide-react';
 import {
   Dialog,
@@ -29,7 +31,7 @@ import {
 import { Label } from './ui/label';
 import { toast } from 'sonner@2.0.3';
 import { useAppDispatch, useAppSelector } from '../store';
-import { fetchPosts, createPost, likePost } from '../store/slices/communitySlice';
+import { fetchPosts, createPost, likePost, addComment } from '../store/slices/communitySlice';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 
 interface CommunityBlogProps {
@@ -43,7 +45,9 @@ export default function CommunityBlog({ user }: CommunityBlogProps) {
   const { posts, isLoading, error } = useAppSelector((state) => state.community);
 
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
-  const [newPost, setNewPost] = useState({ title: '', content: '', tags: '' });
+  const [newPost, setNewPost] = useState({ title: '', content: '', tags: '', image: null as File | null });
+  const [commentInputs, setCommentInputs] = useState<{ [postId: number]: string }>({});
+  const [showCommentInput, setShowCommentInput] = useState<{ [postId: number]: boolean }>({});
 
   useEffect(() => {
     dispatch(fetchPosts());
@@ -52,9 +56,32 @@ export default function CommunityBlog({ user }: CommunityBlogProps) {
   const toggleLike = async (postId: number) => {
     try {
       await dispatch(likePost(postId)).unwrap();
-      toast.success('Post liked!');
     } catch (error) {
       toast.error('Failed to like post');
+    }
+  };
+
+  const toggleCommentInput = (postId: number) => {
+    setShowCommentInput(prev => ({
+      ...prev,
+      [postId]: !prev[postId]
+    }));
+  };
+
+  const handleCommentSubmit = async (postId: number) => {
+    const content = commentInputs[postId]?.trim();
+    if (!content) {
+      toast.error('Please enter a comment');
+      return;
+    }
+
+    try {
+      await dispatch(addComment({ postId, content })).unwrap();
+      setCommentInputs(prev => ({ ...prev, [postId]: '' }));
+      setShowCommentInput(prev => ({ ...prev, [postId]: false }));
+      toast.success('Comment added!');
+    } catch (error) {
+      toast.error('Failed to add comment');
     }
   };
 
@@ -68,11 +95,12 @@ export default function CommunityBlog({ user }: CommunityBlogProps) {
       const postData = {
         title: newPost.title,
         content: newPost.content,
-        tags: newPost.tags.split(',').map(t => t.trim()).filter(t => t)
+        tags: newPost.tags.split(',').map(t => t.trim()).filter(t => t),
+        image: newPost.image || undefined
       };
 
       await dispatch(createPost(postData)).unwrap();
-      setNewPost({ title: '', content: '', tags: '' });
+      setNewPost({ title: '', content: '', tags: '', image: null });
       setIsCreateDialogOpen(false);
       toast.success('Post created successfully!');
     } catch (error) {
@@ -164,6 +192,33 @@ export default function CommunityBlog({ user }: CommunityBlogProps) {
                     onChange={(e) => setNewPost({ ...newPost, tags: e.target.value })}
                   />
                 </div>
+                <div className="space-y-2">
+                  <Label htmlFor="image">Image (optional)</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      id="image"
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => setNewPost({ ...newPost, image: e.target.files?.[0] || null })}
+                      className="flex-1"
+                    />
+                    {newPost.image && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setNewPost({ ...newPost, image: null })}
+                      >
+                        Remove
+                      </Button>
+                    )}
+                  </div>
+                  {newPost.image && (
+                    <p className="text-sm text-gray-600">
+                      Selected: {newPost.image.name}
+                    </p>
+                  )}
+                </div>
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
@@ -179,70 +234,161 @@ export default function CommunityBlog({ user }: CommunityBlogProps) {
           {/* Main Feed */}
           <div className="lg:col-span-2 space-y-6">
             {posts.map((post) => (
-              <Card key={post.id} className="overflow-hidden hover:shadow-lg transition-shadow">
-                {post.image && (
-                  <ImageWithFallback
-                    src={post.image}
-                    alt={post.title}
-                    className="w-full h-64 object-cover"
-                  />
-                )}
-                <CardHeader>
+              <Card key={post.id} className="overflow-hidden">
+                {/* Post Header */}
+                <CardHeader className="pb-3">
                   <div className="flex items-center gap-3 mb-4">
-                    <Avatar>
-                      <AvatarImage src={post.author.avatar} alt={post.author.name} />
-                      <AvatarFallback>{post.author.name.charAt(0)}</AvatarFallback>
+                    <Avatar className="w-10 h-10">
+                      <AvatarImage src={post.author?.avatar} alt={post.author?.name} />
+                      <AvatarFallback className="bg-blue-100 text-blue-600">
+                        {post.author?.name?.charAt(0) || 'U'}
+                      </AvatarFallback>
                     </Avatar>
                     <div className="flex-1">
-                      <h4>{post.author.name}</h4>
-                      <p className="text-sm text-gray-600">{post.author.role}</p>
+                      <h4 className="font-medium">{post.author?.name || 'Anonymous'}</h4>
+                      <p className="text-sm text-gray-600">{post.author?.role || 'Student'}</p>
                     </div>
                     <span className="text-sm text-gray-500 flex items-center gap-1">
                       <Clock className="w-4 h-4" />
                       {post.timeAgo}
                     </span>
                   </div>
-                  <Link to={`/post/${post.id}`}>
-                    <h2 className="text-2xl hover:text-blue-600 transition-colors mb-2">
+
+                  {/* Post Content */}
+                  <div className="space-y-3">
+                    <h2 className="text-xl font-semibold text-gray-900">
                       {post.title}
                     </h2>
-                  </Link>
-                  <p className="text-gray-600 line-clamp-2">{post.content}</p>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex flex-wrap gap-2">
-                    {post.tags.map((tag, idx) => (
-                      <Badge key={idx} variant="secondary">
-                        {tag}
-                      </Badge>
-                    ))}
+                    <p className="text-gray-700 leading-relaxed">{post.content}</p>
+
+                    {/* Post Image */}
+                    {(post.image_url || post.image) && (
+                      <div className="mt-4">
+                        <img
+                          src={post.image_url || post.image}
+                          alt={post.title}
+                          className="w-full max-h-96 object-cover rounded-lg"
+                          onError={(e) => {
+                            // Hide image if it fails to load
+                            e.currentTarget.style.display = 'none';
+                          }}
+                        />
+                      </div>
+                    )}
+
+                    {/* Tags */}
+                    {post.tags && post.tags.length > 0 && (
+                      <div className="flex flex-wrap gap-2 pt-2">
+                        {post.tags.map((tag, idx) => (
+                          <Badge key={idx} variant="secondary" className="text-xs">
+                            {tag}
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                  <div className="flex items-center justify-between pt-4 border-t">
-                    <div className="flex items-center gap-6">
+                </CardHeader>
+                <CardContent className="pt-0">
+                  {/* Action Buttons */}
+                  <div className="flex items-center justify-between py-3 border-t border-gray-100">
+                    <div className="flex items-center gap-4">
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="gap-2"
+                        className="gap-2 hover:bg-red-50 hover:text-red-600"
                         onClick={() => toggleLike(post.id)}
                       >
-                        <Heart className={`w-5 h-5 ${post.isLiked ? 'fill-red-500 text-red-500' : ''}`} />
-                        <span>{post.likes}</span>
+                        <Heart className={`w-5 h-5 ${post.is_liked ? 'fill-red-500 text-red-500' : ''}`} />
+                        <span>{post.likes_count || 0}</span>
                       </Button>
-                      <Link to={`/post/${post.id}`}>
-                        <Button variant="ghost" size="sm" className="gap-2">
-                          <MessageCircle className="w-5 h-5" />
-                          <span>{post.comments}</span>
-                        </Button>
-                      </Link>
-                      <Button variant="ghost" size="sm" className="gap-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="gap-2 hover:bg-blue-50 hover:text-blue-600"
+                        onClick={() => toggleCommentInput(post.id)}
+                      >
+                        <MessageCircle className="w-5 h-5" />
+                        <span>{post.comments_count || 0}</span>
+                      </Button>
+                      <Button variant="ghost" size="sm" className="gap-2 hover:bg-gray-50">
                         <Share2 className="w-5 h-5" />
                       </Button>
                     </div>
-                    <div className="flex items-center gap-2 text-sm text-gray-600">
+                    <div className="flex items-center gap-2 text-sm text-gray-500">
                       <Eye className="w-4 h-4" />
-                      <span>{post.views}</span>
+                      <span>{post.views || 0}</span>
                     </div>
                   </div>
+
+                  {/* Recent Comments */}
+                  {post.recent_comments && post.recent_comments.length > 0 && (
+                    <div className="space-y-3 py-3 border-t border-gray-100">
+                      <h4 className="text-sm font-medium text-gray-700">Recent Comments</h4>
+                      {post.recent_comments.map((comment) => (
+                        <div key={comment.id} className="flex gap-3">
+                          <Avatar className="w-8 h-8">
+                            <AvatarFallback className="bg-gray-100 text-gray-600 text-xs">
+                              {comment.user?.name?.charAt(0) || 'U'}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1 min-w-0">
+                            <div className="bg-gray-50 rounded-lg px-3 py-2">
+                              <p className="text-sm font-medium text-gray-900">
+                                {comment.user?.name || 'Anonymous'}
+                              </p>
+                              <p className="text-sm text-gray-700 mt-1">{comment.content}</p>
+                            </div>
+                            <p className="text-xs text-gray-500 mt-1">
+                              {new Date(comment.created_at).toLocaleDateString()}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Comment Input */}
+                  {showCommentInput[post.id] && (
+                    <div className="py-3 border-t border-gray-100">
+                      <div className="flex gap-3">
+                        <Avatar className="w-8 h-8">
+                          <AvatarFallback className="bg-blue-100 text-blue-600 text-xs">
+                            {user?.name?.charAt(0) || 'U'}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 space-y-2">
+                          <Textarea
+                            placeholder="Write a comment..."
+                            value={commentInputs[post.id] || ''}
+                            onChange={(e) => setCommentInputs(prev => ({
+                              ...prev,
+                              [post.id]: e.target.value
+                            }))}
+                            className="min-h-[80px] resize-none"
+                          />
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setShowCommentInput(prev => ({
+                                ...prev,
+                                [post.id]: false
+                              }))}
+                            >
+                              Cancel
+                            </Button>
+                            <Button
+                              size="sm"
+                              onClick={() => handleCommentSubmit(post.id)}
+                              disabled={!commentInputs[post.id]?.trim()}
+                            >
+                              Comment
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             ))}
@@ -275,9 +421,9 @@ export default function CommunityBlog({ user }: CommunityBlogProps) {
               </CardHeader>
               <CardContent className="space-y-3">
                 {[
-                  { name: 'Dr. Amit Gupta', followers: '2.5K', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Amit' },
-                  { name: 'Sneha Reddy', followers: '1.8K', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Sneha' },
-                  { name: 'Rohan Mehta', followers: '1.2K', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Rohan' },
+                  { name: 'Dr. Amit Gupta', posts: '25', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Amit' },
+                  { name: 'Sneha Reddy', posts: '18', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Sneha' },
+                  { name: 'Rohan Mehta', posts: '12', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Rohan' },
                 ].map((author, idx) => (
                   <div key={idx} className="flex items-center gap-3">
                     <Avatar>
@@ -286,9 +432,8 @@ export default function CommunityBlog({ user }: CommunityBlogProps) {
                     </Avatar>
                     <div className="flex-1">
                       <h4 className="text-sm">{author.name}</h4>
-                      <p className="text-xs text-gray-600">{author.followers} followers</p>
+                      <p className="text-xs text-gray-600">{author.posts} posts</p>
                     </div>
-                    <Button size="sm" variant="outline">Follow</Button>
                   </div>
                 ))}
               </CardContent>

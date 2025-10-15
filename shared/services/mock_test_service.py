@@ -27,13 +27,26 @@ class MockTestService:
             purchase = ExamCategoryPurchase.query.get(purchase_id)
             if not purchase:
                 return {'success': False, 'error': 'Purchase not found'}
-            
+
+            # Check if test cards already exist for this purchase
+            existing_cards = MockTestAttempt.query.filter_by(purchase_id=purchase_id).first()
+            if existing_cards:
+                # Count existing cards
+                total_existing = MockTestAttempt.query.filter_by(purchase_id=purchase_id).count()
+                return {
+                    'success': True,
+                    'cards_created': total_existing,
+                    'subjects_count': len(set(card.subject_id for card in MockTestAttempt.query.filter_by(purchase_id=purchase_id).all())),
+                    'cards_per_subject': 50,
+                    'message': 'Test cards already exist for this purchase'
+                }
+
             # Get subjects included in this purchase
             subject_ids = purchase.get_included_subjects()
-            
+
             if not subject_ids:
                 return {'success': False, 'error': 'No subjects found for purchase'}
-            
+
             created_cards = []
             
             for subject_id in subject_ids:

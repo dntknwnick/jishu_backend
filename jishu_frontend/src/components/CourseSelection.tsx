@@ -236,5 +236,5 @@ export default function CourseSelection({ user }: CourseSelectionProps) {
         </Card>
       </div>
     </div>
-  );
+  );z
 }

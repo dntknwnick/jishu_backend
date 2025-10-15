@@ -15,7 +15,7 @@ class EmailService:
         self.smtp_port = int(os.getenv('SMTP_PORT', '587'))
         self.email_user = os.getenv('EMAIL_USER', '')
         self.email_password = os.getenv('EMAIL_PASSWORD', '')
-        self.from_name = os.getenv('FROM_NAME', 'Jishu Backend')
+        self.from_name = os.getenv('FROM_NAME', 'Jishu')
         
     def send_otp_email(self, to_email, otp, user_name=None):
         """Send OTP email to user"""
@@ -24,7 +24,7 @@ class EmailService:
             msg = MIMEMultipart()
             msg['From'] = f"{self.from_name} <{self.email_user}>"
             msg['To'] = to_email
-            msg['Subject'] = "Your OTP for Jishu Backend"
+            msg['Subject'] = "Your OTP for Jishu"
             
             # Email body
             body = f"""
@@ -35,7 +35,7 @@ class EmailService:
                     
                     <p>Hello {user_name or 'User'},</p>
                     
-                    <p>Your One-Time Password (OTP) for Jishu Backend is:</p>
+                    <p>Your One-Time Password (OTP) for Jishu is:</p>
                     
                     <div style="background-color: #f8f9fa; padding: 20px; text-align: center; border-radius: 8px; margin: 20px 0;">
                         <h1 style="color: #007bff; font-size: 32px; margin: 0; letter-spacing: 5px;">{otp}</h1>
@@ -48,7 +48,7 @@ class EmailService:
                     <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
                     
                     <p style="color: #666; font-size: 12px;">
-                        This is an automated email from Jishu Backend. Please do not reply to this email.
+                        This is an automated email from Jishu. Please do not reply to this email.
                         <br>
                         Generated at: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')} UTC
                     </p>
@@ -88,18 +88,18 @@ class EmailService:
             msg = MIMEMultipart()
             msg['From'] = f"{self.from_name} <{self.email_user}>"
             msg['To'] = to_email
-            msg['Subject'] = "Welcome to Jishu Backend!"
+            msg['Subject'] = "Welcome to Jishu!"
             
             # Email body
             body = f"""
             <html>
             <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
                 <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
-                    <h2 style="color: #28a745;">🎉 Welcome to Jishu Backend!</h2>
+                    <h2 style="color: #28a745;">🎉 Welcome to Jishu!</h2>
                     
                     <p>Hello {user_name},</p>
                     
-                    <p>Welcome to Jishu Backend! Your account has been successfully created.</p>
+                    <p>Welcome to Jishu! Your account has been successfully created.</p>
                     
                     <p>You can now access all features of our platform using your email address.</p>
                     
@@ -112,7 +112,7 @@ class EmailService:
                     <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
                     
                     <p style="color: #666; font-size: 12px;">
-                        Thank you for choosing Jishu Backend!
+                        Thank you for choosing Jishu!
                         <br>
                         Generated at: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')} UTC
                     </p>

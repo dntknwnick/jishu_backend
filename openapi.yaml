@@ -956,12 +956,86 @@ paths:
                             type: boolean
                             description: Whether user has unlimited tokens
 
+  /api/ai/generate-mcq-optimized:
+    post:
+      tags:
+        - AI Services
+      summary: Generate MCQ questions using optimized approach (RECOMMENDED)
+      description: Generate multiple choice questions using optimized vector store approach (15-20 second target)
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                num_questions:
+                  type: integer
+                  minimum: 1
+                  maximum: 20
+                  description: Number of questions to generate
+                subject_name:
+                  type: string
+                  minLength: 1
+                  description: Subject name for question generation
+                difficulty:
+                  type: string
+                  enum: [hard]
+                  default: hard
+                  description: Question difficulty (always hard)
+                save_to_database:
+                  type: boolean
+                  default: false
+                  description: Whether to save questions to database
+              required:
+                - num_questions
+                - subject_name
+            example:
+              num_questions: 5
+              subject_name: "Physics"
+              difficulty: "hard"
+              save_to_database: false
+      responses:
+        '200':
+          description: MCQ questions generated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      questions:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/MCQQuestion'
+                      total_generated:
+                        type: integer
+                      generation_time:
+                        type: number
+                        description: Generation time in seconds
+                      method:
+                        type: string
+                        description: Generation method used
+                      sources_used:
+                        type: array
+                        items:
+                          type: string
+
   /api/ai/generate-mcq-from-pdfs:
     post:
       tags:
         - AI Services
-      summary: Generate MCQ questions from PDFs
-      description: Generate multiple choice questions from PDF documents (hard difficulty only)
+      summary: Generate MCQ questions from PDFs (DEPRECATED)
+      description: "⚠️ DEPRECATED: Use /api/ai/generate-mcq-optimized instead. Legacy MCQ generation from PDF documents (slower)"
+      deprecated: true
       security:
         - BearerAuth: []
       requestBody:

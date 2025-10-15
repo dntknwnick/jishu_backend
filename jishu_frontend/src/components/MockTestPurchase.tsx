@@ -35,14 +35,15 @@ export default function MockTestPurchase({ user }: MockTestPurchaseProps) {
 
   // Simplified for local development - no payment gateway needed
   const [isProcessing, setIsProcessing] = useState(false);
+  const [purchaseCompleted, setPurchaseCompleted] = useState(false);
 
-  // Check if cart is empty and redirect
+  // Check if cart is empty and redirect (but not if purchase was just completed)
   useEffect(() => {
-    if (!currentCart || !currentCart.items || currentCart.items.length === 0) {
+    if (!purchaseCompleted && (!currentCart || !currentCart.items || currentCart.items.length === 0)) {
       toast.error('Your cart is empty');
       navigate('/courses');
     }
-  }, [currentCart, navigate]);
+  }, [currentCart, navigate, purchaseCompleted]);
 
   if (!currentCart || !currentCart.items || currentCart.items.length === 0) {
     return (
@@ -122,20 +123,26 @@ export default function MockTestPurchase({ user }: MockTestPurchaseProps) {
 
       const response = await api.purchase.createPurchase(purchaseData);
 
+      // Mark purchase as completed before clearing cart to prevent redirect
+      setPurchaseCompleted(true);
+
       dispatch(clearCart());
 
       toast.success(
         `Purchase completed! ${response.data.test_cards_created} test cards created. You now have access to ${response.data.total_test_cards} total test cards.`
       );
 
-      // Redirect to test card dashboard
-      navigate('/results', {
-        state: {
-          purchaseSuccess: true,
-          purchaseData: response.data,
-          message: `Course access granted! ${response.data.test_cards_created} test cards are now available.`
-        }
-      });
+      // Small delay to ensure toast is visible before navigation
+      setTimeout(() => {
+        // Redirect to test card dashboard
+        navigate('/results', {
+          state: {
+            purchaseSuccess: true,
+            purchaseData: response.data,
+            message: `Course access granted! ${response.data.test_cards_created} test cards are now available.`
+          }
+        });
+      }, 1000); // 1 second delay to show success message
     } catch (error) {
       console.error('Purchase failed:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to complete purchase. Please try again.';

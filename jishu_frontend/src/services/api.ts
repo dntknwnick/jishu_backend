@@ -1,5 +1,5 @@
 // API Service Layer for Jishu Backend Integration
-const API_BASE_URL = 'http://localhost:5000';
+import { API_BASE_URL } from '../config/environment';
 
 // Request deduplication and queuing system
 class RequestManager {
@@ -146,6 +146,10 @@ export interface Course {
   description: string;
   created_at: string;
   subjects?: Subject[];
+  is_deleted?: boolean;
+  amount?: number;
+  offer_amount?: number;
+  max_tokens?: number;
 }
 
 export interface Subject {
@@ -167,6 +171,7 @@ export interface BlogPost {
   content: string;
   tags: string[];
   user_id: number;
+  image_url?: string;
   user?: {
     id: number;
     name: string;
@@ -189,6 +194,25 @@ export interface BlogPost {
   likes?: number;
   comments?: number;
   views?: number;
+  recent_comments?: BlogComment[];
+  image?: string; // For backward compatibility
+}
+
+export interface BlogComment {
+  id: number;
+  user_id: number;
+  post_id: number;
+  parent_comment_id?: number;
+  content: string;
+  likes_count: number;
+  is_deleted: boolean;
+  created_at: string;
+  updated_at: string;
+  user?: {
+    id: number;
+    name: string;
+    email_id: string;
+  };
 }
 
 export interface Question {
@@ -456,11 +480,29 @@ export const communityApi = {
   getPosts: () =>
     apiRequest<{ posts: BlogPost[] }>('/api/community/posts'),
 
-  createPost: (data: { title: string; content: string; tags: string[] }) =>
-    apiRequest<{ post: BlogPost }>('/api/community/posts', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
+  createPost: (data: { title: string; content: string; tags: string[]; image?: File }) => {
+    if (data.image) {
+      // Use FormData for file upload
+      const formData = new FormData();
+      formData.append('title', data.title);
+      formData.append('content', data.content);
+      formData.append('tags', data.tags.join(','));
+      formData.append('image', data.image);
+
+      return apiRequest<{ post: BlogPost }>('/api/community/posts', {
+        method: 'POST',
+        body: formData,
+        // Don't set Content-Type header, let browser set it for FormData
+        headers: {},
+      });
+    } else {
+      // Use JSON for posts without images
+      return apiRequest<{ post: BlogPost }>('/api/community/posts', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+    }
+  },
 
   likePost: (postId: number) =>
     apiRequest(`/api/community/posts/${postId}/like`, {
@@ -495,10 +537,13 @@ export const questionsApi = {
     apiRequest<{ question: Question }>(`/api/questions/${id}`),
 };
 
-// MCQ Generation API
+// New RAG-based MCQ Generation API
 export interface MCQQuestion {
   question: string;
-  options: string[];
+  option_a: string;
+  option_b: string;
+  option_c: string;
+  option_d: string;
   correct_answer: string;
   explanation?: string;
   difficulty?: string;
@@ -507,76 +552,106 @@ export interface MCQQuestion {
 export interface MCQGenerationResponse {
   success: boolean;
   questions: MCQQuestion[];
-  raw_response?: string;
-  model_used?: string;
-  sources_used?: string[];
-  total_pdfs_processed?: number;
-  total_sources_used_for_mcq?: number;
+  total_generated: number;
+  subject: string;
+  difficulty: string;
+  generation_time: number;
+  sources_used: string[];
+  model_used: string;
+  saved_to_database: boolean;
+  method: string;
   error?: string;
 }
 
-export interface AIStatusResponse {
-  status: string;
-  dependencies: {
-    sentence_transformers: boolean;
-    PyPDF2: boolean;
-    ollama: boolean;
-    numpy: boolean;
-  };
-  pdf_folder: string;
-  pdfs_loaded: number;
+export interface ChatbotResponse {
+  success: boolean;
+  response: string;
   sources: string[];
+  relevant_docs: number;
+  session_id: string;
+  response_time: number;
+  model_used: string;
+  method: string;
+  error?: string;
+}
+
+export interface RAGStatusResponse {
+  system_status: string;
+  dependencies: {
+    chromadb: boolean;
+    sentence_transformers: boolean;
+    pypdf2: boolean;
+    ollama: boolean;
+  };
+  configuration: {
+    pdf_folder_path: string;
+    vector_store_path: string;
+    ollama_model: string;
+    embedding_model: string;
+  };
+  vector_stores: {
+    [subject: string]: {
+      available: boolean;
+      document_count: number;
+      status: string;
+    };
+  };
+  subjects_available: string[];
+  health: string;
 }
 
 export const mcqGenerationApi = {
-  // Check AI service status
-  getAIStatus: () =>
-    apiRequest<AIStatusResponse>('/api/ai/rag/status'),
+  // Check RAG system status
+  getRAGStatus: () =>
+    apiRequest<RAGStatusResponse>('/api/rag/status'),
 
-  // Generate MCQ from PDFs - restricted to hard difficulty only
-  generateFromPDFs: (data: {
+  // Generate MCQ using new RAG pipeline
+  generate: (data: {
+    subject: string;
     num_questions: number;
-    subject_name: string;
     difficulty: string;
-    save_to_database: boolean;
   }) =>
-    apiRequest<{
-      questions: MCQQuestion[];
-      total_generated: number;
-      subject_name: string;
-      difficulty: string;
-      saved_to_database: boolean;
-      sources_used: string[];
-      model_used: string;
-    }>('/api/ai/generate-mcq-from-pdfs', {
+    apiRequest<MCQGenerationResponse>('/api/mcq/generate', {
       method: 'POST',
       body: JSON.stringify(data),
     }),
 
-  // RAG Chat functionality
-  ragChat: (data: {
+  // Initialize RAG system (Admin only)
+  initializeRAG: (data?: {
+    force_recreate?: boolean;
+  }) =>
+    apiRequest<{
+      message: string;
+      successful_subjects: string[];
+      total_subjects: number;
+      successful_count: number;
+      results: { [subject: string]: boolean };
+    }>('/api/rag/initialize', {
+      method: 'POST',
+      body: JSON.stringify(data || {}),
+    }),
+
+  // Reload specific subject vector store (Admin only)
+  reloadSubject: (subject: string) =>
+    apiRequest<{
+      message: string;
+      subject: string;
+    }>(`/api/rag/reload/${subject}`, {
+      method: 'POST',
+    }),
+};
+
+// New Chatbot API
+export const chatbotApi = {
+  // Send query to chatbot using RAG pipeline
+  query: (data: {
     query: string;
+    subject?: string;
     session_id?: string;
   }) =>
-    apiRequest<{
-      status: string;
-      response: string;
-      sources: string[];
-      relevant_docs: number;
-    }>('/api/ai/rag/chat', {
+    apiRequest<ChatbotResponse>('/api/chatbot/query', {
       method: 'POST',
       body: JSON.stringify(data),
-    }),
-
-  // Reload RAG index (Admin only)
-  reloadRAGIndex: () =>
-    apiRequest<{
-      status: string;
-      message: string;
-      pdfs_loaded: number;
-      sources: string[];
-    }>('/api/ai/rag/reload', {
-      method: 'POST',
     }),
 };
 
@@ -626,6 +701,109 @@ export const userTestsApi = {
         test_attempt_id: testAttemptId
       }),
     }),
+
+  // Generate questions for test session (new test card system)
+  generateTestQuestionsForSession: (sessionId: number) =>
+    apiRequest<{
+      session_id: number;
+      questions_generated: number;
+      questions: Array<{
+        id: number;
+        question: string;
+        options: { A: string; B: string; C: string; D: string };
+        correct_answer: string;
+        explanation: string;
+      }>;
+      purchase_type: 'subject' | 'bundle';
+      exam_type: string;
+      subject_directories_used: string[];
+      sources_used: string[];
+      ai_model: string;
+    }>('/api/user/generate-test-questions', {
+      method: 'POST',
+      body: JSON.stringify({
+        session_id: sessionId
+      }),
+    }),
+
+  // Chunked MCQ Generation API methods
+  startChunkedGeneration: (data: { test_attempt_id?: number; session_id?: number }) =>
+    apiRequest<{
+      success: boolean;
+      generation_id: string;
+      initial_questions: Array<{
+        id: number;
+        question: string;
+        options: { A: string; B: string; C: string; D: string };
+        correct_answer: string;
+        explanation: string;
+      }>;
+      progress: {
+        generation_id: string;
+        total_questions_needed: number;
+        questions_generated_count: number;
+        generation_status: string;
+        progress_percentage: number;
+      };
+      total_questions_needed: number;
+      questions_ready: number;
+      background_generation_started: boolean;
+    }>('/api/user/generate-test-questions-chunked', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  getGenerationProgress: (generationId: string) =>
+    apiRequest<{
+      success: boolean;
+      progress: {
+        generation_id: string;
+        total_questions_needed: number;
+        questions_generated_count: number;
+        generation_status: string;
+        progress_percentage: number;
+        error_message?: string;
+      };
+      questions: Array<{
+        id: number;
+        question: string;
+        options: { A: string; B: string; C: string; D: string };
+        correct_answer: string;
+        explanation: string;
+      }>;
+      is_complete: boolean;
+      has_error: boolean;
+    }>(`/api/user/mcq-generation-progress/${generationId}`),
+
+  getAllGeneratedQuestions: (generationId: string) =>
+    apiRequest<{
+      success: boolean;
+      questions: Array<{
+        id: number;
+        question: string;
+        options: { A: string; B: string; C: string; D: string };
+        correct_answer: string;
+        explanation: string;
+      }>;
+      total_generated: number;
+      progress: {
+        generation_id: string;
+        total_questions_needed: number;
+        questions_generated_count: number;
+        generation_status: string;
+        progress_percentage: number;
+      };
+    }>(`/api/user/mcq-generation-questions/${generationId}`),
+
+  cancelGeneration: (generationId: string) =>
+    apiRequest<{
+      success: boolean;
+      message: string;
+    }>(`/api/user/mcq-generation-cancel/${generationId}`, {
+      method: 'POST',
+    }),
+
+
 
   // New Mock Test Card System
   getTestCards: (subjectId?: number) => {
@@ -756,6 +934,7 @@ export const adminApi = {
     amount?: number;
     offer_amount?: number;
     max_tokens?: number;
+    is_deleted?: boolean;
   }) =>
     apiRequest<{ course: Course }>(`/api/admin/courses/${id}`, {
       method: 'PUT',
@@ -844,6 +1023,7 @@ export default {
   community: communityApi,
   questions: questionsApi,
   mcqGeneration: mcqGenerationApi,
+  chatbot: chatbotApi,
   userTests: userTestsApi,
   admin: adminApi,
 };

@@ -92,9 +92,10 @@ export default function TestCardDashboard({ user }: TestCardDashboardProps) {
           remainingAttempts: response.data.remaining_attempts,
           questionsGenerated: response.data.questions_generated,
           testNumber: testCard.test_number,
-          subjectName: testCardsBySubject.find(s => 
+          subjectName: testCardsBySubject.find(s =>
             s.cards.some(c => c.id === testCard.id)
-          )?.subject_name
+          )?.subject_name,
+          isReAttempt: testCard.attempts_used > 0  // Determine if this is a re-attempt
         }
       });
     } catch (error) {
