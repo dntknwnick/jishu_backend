@@ -79,28 +79,29 @@ export default function TestCardDashboard({ user }: TestCardDashboardProps) {
   const handleStartTest = async (testCard: TestCard) => {
     setIsStartingTest(true);
     setStartingTestId(testCard.id);
-    
+
     try {
-      const response = await userTestsApi.startTestCard(testCard.id);
-      
-      // Navigate to test screen with session info
-      navigate('/test', {
+      // Get test instructions and start MCQ generation in background
+      const response = await userTestsApi.getTestInstructions(testCard.id);
+
+      const subjectName = testCardsBySubject.find(s =>
+        s.cards.some(c => c.id === testCard.id)
+      )?.subject_name;
+
+      // Navigate to instructions page with generation session info
+      navigate('/test-instructions', {
         state: {
+          mockTestId: testCard.id,
+          generationSessionId: response.data.generation_session_id,
           sessionId: response.data.session_id,
-          mockTestId: response.data.mock_test_id,
-          attemptNumber: response.data.attempt_number,
-          remainingAttempts: response.data.remaining_attempts,
-          questionsGenerated: response.data.questions_generated,
           testNumber: testCard.test_number,
-          subjectName: testCardsBySubject.find(s =>
-            s.cards.some(c => c.id === testCard.id)
-          )?.subject_name,
-          isReAttempt: testCard.attempts_used > 0  // Determine if this is a re-attempt
+          subjectName: subjectName,
+          isReAttempt: testCard.attempts_used > 0
         }
       });
     } catch (error) {
       console.error('Failed to start test:', error);
-      toast.error('Failed to start test');
+      toast.error('Failed to start test. Please try again.');
     } finally {
       setIsStartingTest(false);
       setStartingTestId(null);

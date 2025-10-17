@@ -75,6 +75,17 @@ class Config:
     MCQ_GENERATION_TIMEOUT = int(os.getenv('MCQ_GENERATION_TIMEOUT', '30'))
     MCQ_TARGET_TIME = int(os.getenv('MCQ_TARGET_TIME', '10'))
 
+    # Multimodal RAG Configuration (CLIP + ChromaDB + Ollama LLaVA)
+    MULTIMODAL_RAG_ENABLED = os.getenv('MULTIMODAL_RAG_ENABLED', 'true').lower() == 'true'
+    MULTIMODAL_CHROMADB_PATH = os.getenv('MULTIMODAL_CHROMADB_PATH', os.path.join(os.getcwd(), 'chromadb_data'))
+    MULTIMODAL_CLIP_MODEL = os.getenv('MULTIMODAL_CLIP_MODEL', 'openai/clip-vit-base-patch32')
+    MULTIMODAL_OLLAMA_MODEL = os.getenv('MULTIMODAL_OLLAMA_MODEL', 'llava')
+    MULTIMODAL_CHUNK_SIZE = int(os.getenv('MULTIMODAL_CHUNK_SIZE', '500'))
+    MULTIMODAL_CHUNK_OVERLAP = int(os.getenv('MULTIMODAL_CHUNK_OVERLAP', '100'))
+    MULTIMODAL_TOP_K_RETRIEVAL = int(os.getenv('MULTIMODAL_TOP_K_RETRIEVAL', '5'))
+    MULTIMODAL_BATCH_SIZE = int(os.getenv('MULTIMODAL_BATCH_SIZE', '100'))
+    MULTIMODAL_ENABLE_IMAGE_PROCESSING = os.getenv('MULTIMODAL_ENABLE_IMAGE_PROCESSING', 'true').lower() == 'true'
+
     # Performance Configuration
     ENABLE_VECTOR_STORE_OPTIMIZATION = os.getenv('ENABLE_VECTOR_STORE_OPTIMIZATION', 'true').lower() == 'true'
     AUTO_INITIALIZE_VECTOR_STORES = os.getenv('AUTO_INITIALIZE_VECTOR_STORES', 'false').lower() == 'true'

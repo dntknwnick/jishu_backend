@@ -15,6 +15,7 @@ import MCQTestScreen from './components/MCQTestScreen';
 import MCQGenerator from './components/MCQGenerator';
 import TestResultDashboard from './components/TestResultDashboard';
 import TestCardDashboard from './components/TestCardDashboard';
+import TestInstructionsPage from './components/TestInstructionsPage';
 import CommunityBlog from './components/CommunityBlog';
 import PostDetails from './components/PostDetails';
 import AIChatbot from './components/AIChatbot';
@@ -110,6 +111,10 @@ export default function App() {
         <Route
           path="/test-cards"
           element={isAuthenticated ? <TestCardDashboard user={user} /> : <Navigate to="/auth" />}
+        />
+        <Route
+          path="/test-instructions"
+          element={isAuthenticated ? <TestInstructionsPage user={user} /> : <Navigate to="/auth" />}
         />
         <Route
           path="/dashboard"

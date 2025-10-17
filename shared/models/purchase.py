@@ -112,9 +112,16 @@ class ExamCategoryQuestion(db.Model):
     difficulty_level = db.Column(db.Enum('easy', 'medium', 'hard'), default='medium')
     source_content = db.Column(db.Text, nullable=True)  # Original content used for generation
 
-    # Chunked generation fields
+    # Chunked generation fields (DEPRECATED - kept for backward compatibility)
     generation_batch_id = db.Column(db.String(50), nullable=True)  # UUID for batch tracking
     batch_sequence = db.Column(db.Integer, nullable=True)  # Order within batch (1, 2, 3, etc.)
+
+    # Multimodal RAG fields
+    chromadb_collection = db.Column(db.String(100), nullable=True)  # Subject-specific ChromaDB collection name
+    multimodal_source_type = db.Column(db.Enum('text', 'image', 'mixed'), default='text')  # Type of source used
+    image_references = db.Column(db.JSON, nullable=True)  # Array of image IDs used in generation
+    clip_embedding_id = db.Column(db.String(255), nullable=True)  # Reference to CLIP embedding in ChromaDB
+    generation_method = db.Column(db.String(50), default='multimodal_rag')  # 'multimodal_rag', 'legacy_rag', etc.
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

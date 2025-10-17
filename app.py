@@ -1955,35 +1955,10 @@ def create_app(config_name='development'):
 
 
     # Backward Compatibility AI Endpoints
-    @app.route('/api/ai/token-status', methods=['GET'])
-    @user_required
-    def api_ai_token_status():
-        """Get current user's AI token usage and limits (backward compatibility)"""
-        try:
-            user = get_current_user()
-            if not user:
-                return error_response("User not found", 404)
-
-            # Get real-time token usage
-            token_info = get_real_time_token_usage(user)
-
-            # Format response to match expected frontend format
-            response_data = {
-                'tokens_used_today': token_info['tokens_used_today'],
-                'daily_limit': token_info['token_limit'],
-                'remaining_tokens': token_info['remaining_tokens'] if token_info['remaining_tokens'] != float('inf') else token_info['token_limit'],
-                'is_unlimited': token_info['unlimited']
-            }
-
-            return success_response(response_data, "Token status retrieved successfully")
-
-        except Exception as e:
-            return error_response(f"Failed to get token status: {str(e)}", 500)
-
     @app.route('/api/ai/chat', methods=['POST'])
     @user_required
     def api_ai_chat():
-        """AI chatbot conversation (backward compatibility endpoint)"""
+        """AI chatbot conversation using multimodal RAG (backward compatibility endpoint)"""
         try:
             user = get_current_user()
             if not user:
@@ -1992,103 +1967,79 @@ def create_app(config_name='development'):
             data = request.get_json()
             message = data.get('message', '').strip()
             session_id = data.get('session_id', str(uuid.uuid4()))
-            is_academic = data.get('is_academic', True)
 
             # Validation
             if not message or len(message) < 3:
                 return error_response("Message must be at least 3 characters long", 400)
 
-            # Check token limits
-            can_proceed, token_limit, tokens_used_today = check_daily_token_limit(user, tokens_needed=1)
-            if not can_proceed:
+            # Enhanced educational query filtering
+            if not is_educational_query(message):
                 return error_response(
-                    f"Daily token limit exceeded. You have used {tokens_used_today}/{token_limit} tokens today. Purchase a course or subject to get more tokens.",
-                    429
+                    "I can only help with educational questions. Please ask about subjects like Physics, Chemistry, Biology, Mathematics, or other academic topics.",
+                    400
                 )
 
-            print(f"🤖 AI Chat (Legacy) - User: {user.id}, Message: {message[:50]}...")
+            print(f"🤖 AI Chat (Multimodal) - User: {user.id}, Message: {message[:50]}...")
 
-            # Use new RAG service for backward compatibility
-            from shared.services.rag_service import get_rag_service
+            # Use multimodal RAG service
+            from shared.services.multimodal_rag_service import get_multimodal_rag_service
 
-            rag_service = get_rag_service(
-                ollama_model=app.config.get('RAG_OLLAMA_MODEL', 'llama3.2:1b'),
-                top_k_results=app.config.get('RAG_TOP_K_RESULTS', 3),
-                similarity_threshold=app.config.get('RAG_SIMILARITY_THRESHOLD', 0.01)
+            multimodal_service = get_multimodal_rag_service(
+                chromadb_path=app.config.get('MULTIMODAL_CHROMADB_PATH'),
+                ollama_model=app.config.get('MULTIMODAL_OLLAMA_MODEL', 'llava')
             )
 
-            # Generate response using new RAG pipeline
+            # Generate response using multimodal RAG pipeline
             import time
-            import threading
-
             start_time = time.time()
-            result = None
-            error_occurred = None
 
-            def generate_response():
-                nonlocal result, error_occurred
-                try:
-                    result = rag_service.generate_chat_response(
-                        query=message,
-                        subject=None,  # No subject filtering for general chat
-                        session_id=session_id
-                    )
-                except Exception as e:
-                    error_occurred = str(e)
-
-            # Run with timeout using threading
-            thread = threading.Thread(target=generate_response)
-            thread.daemon = True
-            thread.start()
-            thread.join(timeout=15)  # 15 second timeout for faster response
-
-            if thread.is_alive():
-                return error_response("AI response generation timed out. Please try a shorter question.", 408)
-
-            if error_occurred:
-                return error_response(f"Error generating response: {error_occurred}", 500)
-
-            if not result:
-                return error_response("Failed to generate response", 500)
+            result = multimodal_service.generate_chat_response(
+                query=message,
+                subject='general'
+            )
 
             response_time = time.time() - start_time
 
             if not result['success']:
                 return error_response(result['error'], 500)
 
-            # Estimate tokens used (approximate)
-            tokens_consumed = max(1, len(result['response']) // 4)  # Rough estimate: 4 chars per token
+            ai_response = result['response']
 
-            # Save chat history and update stats
-            save_chat_history_and_update_stats(user, message, result['response'], tokens_consumed, session_id)
+            # Save to chat history
+            try:
+                chat_history = AIChatHistory(
+                    user_id=user.id,
+                    session_id=session_id,
+                    message=message,
+                    response=ai_response,
+                    response_time=response_time,
+                    tokens_used=0,
+                    is_academic=True
+                )
+                db.session.add(chat_history)
+                db.session.commit()
+                print(f"✅ Chat response generated in {response_time:.2f}s")
+            except Exception as e:
+                print(f"❌ Error saving chat history: {e}")
 
-            # Get updated token info
-            updated_token_info = get_real_time_token_usage(user)
-
-            # Format response to match expected frontend format
-            response_data = {
-                'response': result['response'],
+            return success_response({
+                'response': ai_response,
                 'session_id': session_id,
                 'response_time': response_time,
-                'sources': result.get('sources', []),
-                'model_used': result.get('model_used', 'llama3.2:1b'),
-                'token_info': {
-                    'tokens_used_today': updated_token_info['tokens_used_today'],
-                    'daily_limit': updated_token_info['token_limit'],
-                    'remaining_tokens': updated_token_info['remaining_tokens'] if updated_token_info['remaining_tokens'] != float('inf') else updated_token_info['token_limit']
-                }
-            }
-
-            return success_response(response_data, "AI response generated successfully")
+                'model_used': result.get('model_used', 'llava'),
+                'method': 'multimodal_rag_pipeline'
+            }, f"Chat response generated in {response_time:.2f}s using multimodal RAG")
 
         except Exception as e:
+            db.session.rollback()
+            print(f"❌ Error in AI chat: {str(e)}")
             return error_response(f"Failed to generate AI response: {str(e)}", 500)
 
     # New RAG-based AI Endpoints
     @app.route('/api/mcq/generate', methods=['POST'])
     @user_required
     def api_generate_mcq():
-        """Generate MCQ questions using new RAG pipeline"""
+        """Generate MCQ questions using multimodal RAG pipeline (CLIP + ChromaDB + Ollama Qwen2-VL)"""
         try:
             user = get_current_user()
             if not user:
@@ -2114,25 +2065,24 @@ def create_app(config_name='development'):
             if subject not in valid_subjects:
                 return error_response(f"Subject must be one of: {', '.join(valid_subjects)}", 400)
 
-            print(f"🚀 New MCQ Generation - User: {user.id}, Subject: {subject}, Questions: {num_questions}")
+            print(f"🚀 Multimodal MCQ Generation - User: {user.id}, Subject: {subject}, Questions: {num_questions}")
 
-            # Use optimized three-layer RAG service
-            from shared.services.rag_service import get_rag_service
+            # Use multimodal RAG service
+            from shared.services.multimodal_rag_service import get_multimodal_rag_service
 
-            rag_service = get_rag_service(
-                ollama_model=app.config.get('RAG_OLLAMA_MODEL', 'llama3.2:1b'),
-                top_k_results=app.config.get('RAG_TOP_K_RESULTS', 5),
-                similarity_threshold=app.config.get('RAG_SIMILARITY_THRESHOLD', 0.2)
+            multimodal_service = get_multimodal_rag_service(
+                chromadb_path=app.config.get('MULTIMODAL_CHROMADB_PATH'),
+                ollama_model=app.config.get('MULTIMODAL_OLLAMA_MODEL', 'llava')
             )
 
-            # Generate MCQs using new RAG pipeline
+            # Generate MCQs using multimodal RAG pipeline
             import time
             start_time = time.time()
 
-            result = rag_service.generate_mcq_questions(
+            result = multimodal_service.generate_mcq(
+                query=subject,
                 subject=subject,
-                num_questions=num_questions,
-                difficulty=difficulty
+                num_questions=num_questions
             )
 
             generation_time = time.time() - start_time
@@ -2140,7 +2090,7 @@ def create_app(config_name='development'):
             if not result['success']:
                 return error_response(result['error'], 500)
 
-            questions = result['questions']
+            questions = result.get('questions', [])
 
             # Save to database if questions were generated
             if questions:
@@ -2156,9 +2106,9 @@ def create_app(config_name='development'):
                             correct_answer=q_data.get('correct_answer', 'A'),
                             explanation=q_data.get('explanation', ''),
                             is_ai_generated=True,
-                            ai_model_used=result['model_used'],
+                            ai_model_used=result.get('model_used', 'llava'),
                             difficulty_level=difficulty,
-                            source_content=f"Generated from {subject} PDFs using RAG pipeline"
+                            source_content=f"Generated from {subject} PDFs using Multimodal RAG (CLIP+ChromaDB+Ollama)"
                         )
                         db.session.add(question)
 
@@ -2174,11 +2124,10 @@ def create_app(config_name='development'):
                 'subject': subject,
                 'difficulty': difficulty,
                 'generation_time': generation_time,
-                'sources_used': result.get('sources_used', []),
-                'model_used': result['model_used'],
+                'model_used': result.get('model_used', 'llava'),
                 'saved_to_database': True,
-                'method': 'rag_pipeline'
-            }, f"Generated {len(questions)} {difficulty} MCQ questions for {subject} in {generation_time:.2f}s")
+                'method': 'multimodal_rag_pipeline'
+            }, f"Generated {len(questions)} MCQ questions for {subject} in {generation_time:.2f}s using multimodal RAG")
 
         except Exception as e:
             db.session.rollback()
@@ -2188,7 +2137,7 @@ def create_app(config_name='development'):
     @app.route('/api/chatbot/query', methods=['POST'])
     @user_required
     def api_chatbot_query():
-        """Answer user questions using new RAG pipeline"""
+        """Answer user questions using multimodal RAG pipeline (CLIP + ChromaDB + Ollama Qwen2-VL)"""
         try:
             user = get_current_user()
             if not user:
@@ -2215,24 +2164,23 @@ def create_app(config_name='development'):
             if subject and subject not in valid_subjects:
                 return error_response(f"Subject must be one of: {', '.join(valid_subjects)}", 400)
 
-            print(f"🤖 New Chatbot Query - User: {user.id}, Query: {query[:50]}...")
+            print(f"🤖 Multimodal Chatbot Query - User: {user.id}, Query: {query[:50]}...")
 
-            # Use optimized three-layer RAG service
-            from shared.services.rag_service import get_rag_service
+            # Use multimodal RAG service
+            from shared.services.multimodal_rag_service import get_multimodal_rag_service
 
-            rag_service = get_rag_service(
-                ollama_model=app.config.get('RAG_OLLAMA_MODEL', 'llama3.2:1b'),
-                top_k_results=app.config.get('RAG_TOP_K_RESULTS', 3),
-                similarity_threshold=app.config.get('RAG_SIMILARITY_THRESHOLD', 0.01)
+            multimodal_service = get_multimodal_rag_service(
+                chromadb_path=app.config.get('MULTIMODAL_CHROMADB_PATH'),
+                ollama_model=app.config.get('MULTIMODAL_OLLAMA_MODEL', 'llava')
             )
 
-            # Generate response using new RAG pipeline
+            # Generate response using multimodal RAG pipeline
             import time
             start_time = time.time()
 
-            result = rag_service.generate_chat_response(
+            result = multimodal_service.generate_chat_response(
                 query=query,
-                subject=subject if subject else None
+                subject=subject if subject else 'general'
             )
 
             response_time = time.time() - start_time
@@ -2249,27 +2197,23 @@ def create_app(config_name='development'):
                     session_id=session_id,
                     message=query,
                     response=ai_response,
-                    context_provided=subject,
                     response_time=response_time,
-                    tokens_used=0,  # Token counting can be added later
-                    model_used=result['model_used']
+                    tokens_used=0,
+                    is_academic=True
                 )
                 db.session.add(chat_history)
                 db.session.commit()
                 print(f"✅ Chat response generated in {response_time:.2f}s")
             except Exception as e:
                 print(f"❌ Error saving chat history: {e}")
-                # Don't fail the request if history saving fails
 
             return success_response({
                 'response': ai_response,
-                'sources': result.get('sources', []),
-                'relevant_docs': result.get('relevant_docs', 0),
                 'session_id': session_id,
                 'response_time': response_time,
-                'model_used': result['model_used'],
-                'method': 'rag_pipeline'
-            }, f"Chat response generated in {response_time:.2f}s")
+                'model_used': result.get('model_used', 'llava'),
+                'method': 'multimodal_rag_pipeline'
+            }, f"Chat response generated in {response_time:.2f}s using multimodal RAG")
 
         except Exception as e:
             db.session.rollback()
@@ -2655,14 +2599,209 @@ def create_app(config_name='development'):
         except Exception as e:
             return error_response(f"Failed to get test cards: {str(e)}", 500)
 
+    @app.route('/api/user/test-cards/<int:mock_test_id>/instructions', methods=['POST'])
+    @user_required
+    def api_test_instructions(mock_test_id):
+        """
+        Get test instructions and start MCQ generation in background
+        This endpoint is called when user clicks 'Start Test' on test card
+        """
+        try:
+            user = get_current_user()
+            if not user:
+                logger.error("User not found in test instructions")
+                return error_response("User not found", 404)
+
+            logger.info(f"📋 Test instructions requested for mock_test_id: {mock_test_id}, user_id: {user.id}")
+
+            # Check Ollama health first
+            from shared.services.ollama_health_service import get_ollama_health_service
+            ollama_service = get_ollama_health_service()
+
+            logger.info("🔍 Checking Ollama server health...")
+            is_healthy, health_msg = ollama_service.check_server_health()
+            if not is_healthy:
+                logger.error(f"❌ Ollama server health check failed: {health_msg}")
+                return error_response(
+                    f"Ollama server not available: {health_msg}. Please ensure Ollama is running on http://localhost:11434",
+                    503
+                )
+
+            logger.info("✅ Ollama server is healthy")
+
+            # Ensure model is available
+            model_name = app.config.get('MULTIMODAL_OLLAMA_MODEL', 'llava')
+            logger.info(f"🔍 Checking model availability: {model_name}")
+
+            is_available, model_msg = ollama_service.ensure_model_available(model_name, auto_pull=True)
+            if not is_available:
+                logger.error(f"❌ Model not available: {model_msg}")
+                return error_response(
+                    f"Model '{model_name}' not available: {model_msg}. Attempting to pull model...",
+                    503
+                )
+
+            logger.info(f"✅ Model '{model_name}' is available")
+
+            # Start test attempt
+            from shared.services.mock_test_service import MockTestService
+            logger.info(f"📝 Starting test attempt for mock_test_id: {mock_test_id}")
+
+            result = MockTestService.start_test_attempt(mock_test_id, user.id)
+
+            if not result['success']:
+                logger.error(f"❌ Failed to start test attempt: {result['error']}")
+                return error_response(result['error'], 400)
+
+            session_id = result.get('session_id')
+            logger.info(f"✅ Test attempt started with session_id: {session_id}")
+
+            # Start background MCQ generation
+            from shared.services.async_mcq_generation_service import get_async_mcq_generation_service
+            async_service = get_async_mcq_generation_service()
+
+            mock_test = MockTestAttempt.query.filter_by(id=mock_test_id, user_id=user.id).first()
+            if not mock_test:
+                logger.error(f"❌ Test card not found: {mock_test_id}")
+                return error_response("Test card not found", 404)
+
+            # Create generation session
+            logger.info(f"🔄 Creating generation session for mock_test_id: {mock_test_id}")
+            gen_session = async_service.create_session(
+                mock_test_id=mock_test_id,
+                user_id=user.id,
+                subject_id=mock_test.subject_id,
+                total_questions=50,
+                initial_questions_count=5
+            )
+
+            logger.info(f"✅ Generation session created: {gen_session.session_id}")
+
+            # Start background generation
+            def generate_mcq():
+                try:
+                    logger.info(f"🚀 Starting background MCQ generation for session: {gen_session.session_id}")
+
+                    from shared.services.multimodal_rag_service import get_multimodal_rag_service
+                    multimodal_service = get_multimodal_rag_service(
+                        chromadb_path=app.config.get('MULTIMODAL_CHROMADB_PATH'),
+                        ollama_model=model_name
+                    )
+
+                    subject = ExamCategorySubject.query.get(mock_test.subject_id)
+                    subject_name = subject.subject_name.lower() if subject else 'physics'
+
+                    logger.info(f"📚 Generating MCQs for subject: {subject_name}")
+
+                    result = multimodal_service.generate_mcq(
+                        query=subject_name,
+                        subject=subject_name,
+                        num_questions=50
+                    )
+
+                    if result.get('success'):
+                        logger.info(f"✅ MCQ generation completed: {len(result.get('questions', []))} questions")
+                    else:
+                        logger.error(f"❌ MCQ generation failed: {result.get('error')}")
+
+                    return result
+
+                except Exception as e:
+                    logger.error(f"❌ Error in background MCQ generation: {str(e)}", exc_info=True)
+                    return {'success': False, 'error': str(e)}
+
+            logger.info(f"🔄 Starting background generation thread for session: {gen_session.session_id}")
+            async_service.start_background_generation(
+                gen_session.session_id,
+                generate_mcq
+            )
+
+            logger.info(f"✅ Test instructions endpoint completed successfully")
+
+            return success_response({
+                'session_id': session_id,
+                'generation_session_id': gen_session.session_id,
+                'mock_test_id': mock_test_id,
+                'message': 'Test instructions loaded. MCQ generation started in background.',
+                'ollama_model': model_name,
+                'server_healthy': True
+            }, "Test instructions ready")
+
+        except Exception as e:
+            logger.error(f"❌ Error in test instructions endpoint: {str(e)}", exc_info=True)
+            return error_response(
+                f"Failed to load test instructions: {str(e)}. Please try again or contact support.",
+                500
+            )
+
+    @app.route('/api/user/test-cards/<int:mock_test_id>/generation-status', methods=['GET'])
+    @user_required
+    def api_generation_status(mock_test_id):
+        """
+        Poll MCQ generation status
+        Returns progress and initial questions when ready
+        """
+        try:
+            user = get_current_user()
+            if not user:
+                logger.error("User not found in generation status check")
+                return error_response("User not found", 404)
+
+            generation_session_id = request.args.get('generation_session_id')
+            if not generation_session_id:
+                logger.error("generation_session_id not provided")
+                return error_response("generation_session_id is required", 400)
+
+            logger.debug(f"📊 Checking generation status for session: {generation_session_id}")
+
+            from shared.services.async_mcq_generation_service import get_async_mcq_generation_service
+            async_service = get_async_mcq_generation_service()
+
+            progress = async_service.get_progress(generation_session_id)
+
+            if not progress.get('success'):
+                logger.warning(f"⚠️ Generation session not found: {generation_session_id}")
+                return error_response(progress.get('error'), 404)
+
+            # Log progress for debugging
+            if progress.get('is_complete'):
+                logger.info(f"✅ Generation complete for session: {generation_session_id}")
+            elif progress.get('has_error'):
+                logger.error(f"❌ Generation error for session: {progress.get('error_message')}")
+            else:
+                logger.debug(f"🔄 Generation in progress: {progress.get('progress')}%")
+
+            return success_response(progress, "Generation status retrieved")
+
+        except Exception as e:
+            logger.error(f"❌ Error getting generation status: {str(e)}", exc_info=True)
+            return error_response(f"Failed to get generation status: {str(e)}", 500)
+
     @app.route('/api/user/test-cards/<int:mock_test_id>/start', methods=['POST'])
     @user_required
     def api_start_mock_test(mock_test_id):
-        """Start a test attempt for a specific test card"""
+        """
+        Start a test attempt for a specific test card
+        MCQs must be ready before calling this endpoint
+        """
         try:
             user = get_current_user()
             if not user:
                 return error_response("User not found", 404)
+
+            generation_session_id = request.args.get('generation_session_id')
+
+            # Check if MCQs are ready
+            if generation_session_id:
+                from shared.services.async_mcq_generation_service import get_async_mcq_generation_service
+                async_service = get_async_mcq_generation_service()
+
+                gen_session = async_service.get_session(generation_session_id)
+                if gen_session and not gen_session.is_complete:
+                    return error_response("MCQ generation not complete. Please wait.", 400)
+
+                if gen_session and gen_session.has_error:
+                    return error_response(f"MCQ generation failed: {gen_session.error_message}", 500)
 
             from shared.services.mock_test_service import MockTestService
             result = MockTestService.start_test_attempt(mock_test_id, user.id)
@@ -2674,6 +2813,87 @@ def create_app(config_name='development'):
 
         except Exception as e:
             return error_response(f"Failed to start test attempt: {str(e)}", 500)
+
+    # Ollama Health Check Endpoints
+    @app.route('/api/ollama/health', methods=['GET'])
+    def api_ollama_health():
+        """Check Ollama server health and model availability"""
+        try:
+            app.logger.info("🔍 Checking Ollama server health...")
+
+            from shared.services.ollama_health_service import get_ollama_health_service
+            ollama_service = get_ollama_health_service()
+
+            health_status = ollama_service.get_health_status()
+
+            if health_status['server_healthy']:
+                app.logger.info(f"✅ Ollama server is healthy. Models available: {health_status['models_count']}")
+            else:
+                app.logger.warning(f"⚠️ Ollama server health check failed: {health_status['server_message']}")
+
+            return success_response(health_status, "Ollama health status retrieved")
+
+        except Exception as e:
+            logger.error(f"❌ Error checking Ollama health: {str(e)}", exc_info=True)
+            return error_response(
+                f"Failed to check Ollama health: {str(e)}. Ensure Ollama is running on http://localhost:11434",
+                500
+            )
+
+    @app.route('/api/ollama/models', methods=['GET'])
+    def api_ollama_models():
+        """Get list of available Ollama models"""
+        try:
+            logger.info("📋 Fetching available Ollama models...")
+
+            from shared.services.ollama_health_service import get_ollama_health_service
+            ollama_service = get_ollama_health_service()
+
+            success, models, message = ollama_service.get_available_models()
+
+            if not success:
+                app.logger.error(f"❌ Failed to get models: {message}")
+                return error_response(
+                    f"Failed to get models: {message}. Ensure Ollama server is running.",
+                    503
+                )
+
+            app.logger.info(f"✅ Found {len(models)} available models")
+
+            return success_response({
+                'models': models,
+                'count': len(models)
+            }, "Available models retrieved")
+
+        except Exception as e:
+            app.logger.error(f"❌ Error getting Ollama models: {str(e)}", exc_info=True)
+            return error_response(f"Failed to get Ollama models: {str(e)}", 500)
+
+    @app.route('/api/ollama/model/<model_name>/check', methods=['GET'])
+    def api_check_model(model_name):
+        """Check if a specific model is available"""
+        try:
+            app.logger.info(f"🔍 Checking model availability: {model_name}")
+
+            from shared.services.ollama_health_service import get_ollama_health_service
+            ollama_service = get_ollama_health_service()
+
+            is_available, message = ollama_service.is_model_available(model_name)
+
+            if is_available:
+                app.logger.info(f"✅ Model '{model_name}' is available")
+            else:
+                app.logger.warning(f"⚠️ Model '{model_name}' not available: {message}")
+
+            return success_response({
+                'model': model_name,
+                'available': is_available,
+                'message': message
+            }, "Model check completed")
+
+        except Exception as e:
+            app.logger.error(f"❌ Error checking model '{model_name}': {str(e)}", exc_info=True)
+            return error_response(f"Failed to check model: {str(e)}", 500)
 
     @app.route('/api/user/test-sessions/<int:session_id>/questions', methods=['GET'])
     @user_required
@@ -3458,109 +3678,16 @@ def create_app(config_name='development'):
 
     # Legacy endpoint removed - use /api/user/generate-test-questions instead
 
-    # New Chunked MCQ Generation Endpoints
-    @app.route('/api/user/generate-test-questions-chunked', methods=['POST'])
-    @user_required
-    def api_start_chunked_mcq_generation():
-        """Start chunked MCQ generation - generates first 5 questions immediately, continues in background"""
-        try:
-            user = get_current_user()
-            if not user:
-                return error_response("User not found", 404)
+    # Chunked MCQ Generation Endpoints - DEPRECATED
+    # Use /api/mcq/generate or /api/user/generate-test-questions instead
+    # @app.route('/api/user/generate-test-questions-chunked', methods=['POST'])
+    # @user_required
+    # def api_start_chunked_mcq_generation():
+    #     """Start chunked MCQ generation - generates first 5 questions immediately, continues in background"""
+    #     # This endpoint has been deprecated. Use /api/mcq/generate instead.
+    #     pass
 
-            data = request.get_json()
-            test_attempt_id = data.get('test_attempt_id')
-            session_id = data.get('session_id')
-
-            if not test_attempt_id and not session_id:
-                return error_response("Either test_attempt_id or session_id is required", 400)
-
-            from shared.services.chunked_mcq_service_simple import get_chunked_mcq_service
-
-            chunked_service = get_chunked_mcq_service()
-            result = chunked_service.start_chunked_generation(
-                test_attempt_id=test_attempt_id,
-                session_id=session_id,
-                user_id=user.id
-            )
-
-            if not result['success']:
-                return error_response(result['error'], 400)
-
-            return success_response(result, "Chunked MCQ generation started successfully")
-
-        except Exception as e:
-            return error_response(f"Failed to start chunked generation: {str(e)}", 500)
-
-    @app.route('/api/user/mcq-generation-progress/<generation_id>', methods=['GET'])
-    @user_required
-    def api_get_mcq_generation_progress(generation_id):
-        """Get progress of ongoing MCQ generation"""
-        try:
-            user = get_current_user()
-            if not user:
-                return error_response("User not found", 404)
-
-            from shared.services.chunked_mcq_service_simple import get_chunked_mcq_service
-
-            chunked_service = get_chunked_mcq_service()
-            result = chunked_service.get_generation_progress(generation_id)
-
-            if not result['success']:
-                return error_response(result['error'], 404)
-
-            return success_response(result, "Generation progress retrieved successfully")
-
-        except Exception as e:
-            return error_response(f"Failed to get generation progress: {str(e)}", 500)
-
-    @app.route('/api/user/mcq-generation-questions/<generation_id>', methods=['GET'])
-    @user_required
-    def api_get_all_generated_questions(generation_id):
-        """Get all generated questions for a generation"""
-        try:
-            user = get_current_user()
-            if not user:
-                return error_response("User not found", 404)
-
-            from shared.services.chunked_mcq_service_simple import get_chunked_mcq_service
-
-            chunked_service = get_chunked_mcq_service()
-            result = chunked_service.get_all_questions(generation_id)
-
-            if not result['success']:
-                return error_response(result['error'], 404)
-
-            return success_response(result, "All generated questions retrieved successfully")
-
-        except Exception as e:
-            return error_response(f"Failed to get generated questions: {str(e)}", 500)
-
-    @app.route('/api/user/mcq-generation-cancel/<generation_id>', methods=['POST'])
-    @user_required
-    def api_cancel_mcq_generation(generation_id):
-        """Cancel ongoing MCQ generation"""
-        try:
-            user = get_current_user()
-            if not user:
-                return error_response("User not found", 404)
-
-            from shared.services.chunked_mcq_service_simple import get_chunked_mcq_service
-
-            chunked_service = get_chunked_mcq_service()
-            result = chunked_service.cancel_generation(generation_id)
-
-            if not result['success']:
-                return error_response(result['error'], 400)
-
-            return success_response(result, "MCQ generation cancelled successfully")
-
-        except Exception as e:
-            return error_response(f"Failed to cancel generation: {str(e)}", 500)
-
-
-
-
+    # Deprecated chunked MCQ endpoints removed - use /api/mcq/generate instead
 
     @app.route('/api/user/test/<int:test_attempt_id>/submit', methods=['POST'])
     @user_required
@@ -3813,49 +3940,7 @@ def create_app(config_name='development'):
             db.session.rollback()
             return error_response(f"Failed to reset purchases: {str(e)}", 500)
 
-    @app.route('/api/admin/chat/tokens', methods=['GET'])
-    @admin_required
-    def api_admin_chat_tokens():
-        """Get all users' chat token statistics"""
-        try:
-            page = request.args.get('page', 1, type=int)
-            per_page = request.args.get('per_page', 10, type=int)
-            month_year = request.args.get('month_year')
-
-            # Build query
-            query = UserAIStats.query
-
-            if month_year:
-                query = query.filter_by(month_year=month_year)
-
-            # Join with user table to get user details
-            query = query.join(User).order_by(UserAIStats.total_tokens_used.desc())
-
-            # Paginate results
-            stats = query.paginate(page=page, per_page=per_page, error_out=False)
-
-            result_data = []
-            for stat in stats.items:
-                result_data.append({
-                    **stat.to_dict(),
-                    'user_name': stat.user.name,
-                    'user_email': stat.user.email_id
-                })
-
-            return success_response({
-                'token_stats': result_data,
-                'pagination': {
-                    'page': stats.page,
-                    'pages': stats.pages,
-                    'per_page': stats.per_page,
-                    'total': stats.total,
-                    'has_next': stats.has_next,
-                    'has_prev': stats.has_prev
-                }
-            }, "Token statistics retrieved successfully")
-
-        except Exception as e:
-            return error_response(f"Failed to get token statistics: {str(e)}", 500)
+    # Deprecated admin token endpoints removed - use multimodal RAG service instead
 
     # Track MCQ generation requests to prevent duplicates
     mcq_generation_requests = {}
@@ -4393,42 +4478,7 @@ def create_app(config_name='development'):
         except Exception as e:
             return error_response(f"Failed to get user purchases: {str(e)}", 500)
 
-    @app.route('/api/admin/users/<int:user_id>/chat_tokens', methods=['GET'])
-    @admin_required
-    def api_admin_get_user_chat_tokens(user_id):
-        """Get user's AI chat token usage (Admin only)"""
-        try:
-            user = User.query.get(user_id)
-            if not user:
-                return error_response("User not found", 404)
-
-            # Get user's AI stats
-            ai_stats = UserAIStats.query.filter_by(user_id=user_id).order_by(
-                UserAIStats.month_year.desc()
-            ).all()
-
-            # Get recent chat history
-            recent_chats = AIChatHistory.query.filter_by(user_id=user_id).order_by(
-                AIChatHistory.created_at.desc()
-            ).limit(10).all()
-
-            # Calculate totals
-            total_queries = sum(stat.total_queries for stat in ai_stats)
-            total_tokens = sum(stat.total_tokens_used for stat in ai_stats)
-
-            return success_response({
-                'user': user.to_dict(),
-                'ai_stats': [stat.to_dict() for stat in ai_stats],
-                'recent_chats': [chat.to_dict() for chat in recent_chats],
-                'summary': {
-                    'total_queries': total_queries,
-                    'total_tokens_used': total_tokens,
-                    'last_query_date': ai_stats[0].last_query_date.isoformat() if ai_stats and ai_stats[0].last_query_date else None
-                }
-            }, "User AI token usage retrieved successfully")
-
-        except Exception as e:
-            return error_response(f"Failed to get user AI token usage: {str(e)}", 500)
+    # Deprecated admin user chat tokens endpoint removed - use multimodal RAG service instead
 
     @app.route('/api/admin/stats', methods=['GET'])
     @admin_required

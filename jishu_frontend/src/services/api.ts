@@ -872,6 +872,37 @@ export const userTestsApi = {
     }>(`/api/user/test-cards${params}`);
   },
 
+  // Get test instructions and start MCQ generation in background
+  getTestInstructions: (mockTestId: number) =>
+    apiRequest<{
+      session_id: number;
+      generation_session_id: string;
+      mock_test_id: number;
+      message: string;
+      ollama_model: string;
+      server_healthy: boolean;
+    }>(`/api/user/test-cards/${mockTestId}/instructions`, {
+      method: 'POST',
+    }),
+
+  // Poll MCQ generation status
+  getGenerationProgress: (generationSessionId: string) =>
+    apiRequest<{
+      success: boolean;
+      session_id: string;
+      progress: number;
+      questions_generated: number;
+      total_questions: number;
+      is_complete: boolean;
+      has_error: boolean;
+      error_message?: string;
+      questions: any[];
+      can_use_partial: boolean;
+      timestamp: string;
+    }>(`/api/user/test-cards/generation-status?generation_session_id=${generationSessionId}`, {
+      method: 'GET',
+    }),
+
   // Start a test attempt for a specific test card
   startTestCard: (mockTestId: number) =>
     apiRequest<{
