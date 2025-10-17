@@ -47,12 +47,12 @@ export default function MockTestPurchase({ user }: MockTestPurchaseProps) {
 
   if (!currentCart || !currentCart.items || currentCart.items.length === 0) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-background dark:bg-slate-900">
         <Header user={user} />
         <div className="container mx-auto px-4 py-8">
           <div className="text-center">
-            <h2 className="text-2xl mb-4">Cart is Empty</h2>
-            <p className="text-gray-600 mb-4">Please add items to your cart before proceeding to payment.</p>
+            <h2 className="text-2xl mb-4 text-foreground">Cart is Empty</h2>
+            <p className="text-muted-foreground dark:text-muted-foreground mb-4">Please add items to your cart before proceeding to payment.</p>
             <Button onClick={() => navigate('/courses')}>
               Browse Courses
             </Button>
@@ -155,9 +155,9 @@ export default function MockTestPurchase({ user }: MockTestPurchaseProps) {
   // This check is now handled above with currentCart
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-background dark:bg-slate-900">
       <Header user={user} />
-      
+
       <div className="container mx-auto px-4 py-8">
         <div className="flex items-center gap-2 mb-6">
           <Link to={`/subjects/${currentCart.courseId}`}>
@@ -168,7 +168,7 @@ export default function MockTestPurchase({ user }: MockTestPurchaseProps) {
           </Link>
         </div>
 
-        <h1 className="text-4xl mb-8">Checkout</h1>
+        <h1 className="text-4xl mb-8 text-foreground">Checkout</h1>
 
         <div className="grid lg:grid-cols-3 gap-8">
           {/* Payment Form */}
@@ -176,12 +176,12 @@ export default function MockTestPurchase({ user }: MockTestPurchaseProps) {
             {/* Order Summary Card */}
             <Card>
               <CardHeader>
-                <CardTitle>Order Summary</CardTitle>
+                <CardTitle className="text-foreground">Order Summary</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h3 className="text-lg">{currentCart.courseName}</h3>
+                    <h3 className="text-lg text-foreground">{currentCart.courseName}</h3>
                     {currentCart.isBundle && (
                       <Badge className="mt-1">Complete Bundle</Badge>
                     )}
@@ -189,11 +189,11 @@ export default function MockTestPurchase({ user }: MockTestPurchaseProps) {
                 </div>
                 <div className="space-y-2">
                   {currentCart.items.map((item, index) => (
-                    <div key={index} className="flex items-center justify-between text-sm">
+                    <div key={index} className="flex items-center justify-between text-sm text-foreground">
                       <span className="flex items-center gap-2">
                         <span>{item.icon}</span>
                         <span>{item.name}</span>
-                        <span className="text-gray-500">({item.tests || 50} tests)</span>
+                        <span className="text-muted-foreground dark:text-muted-foreground">({item.tests || 50} tests)</span>
                       </span>
                       <span>₹{item.price}</span>
                     </div>
@@ -205,15 +205,15 @@ export default function MockTestPurchase({ user }: MockTestPurchaseProps) {
             {/* Local Development - Instant Access */}
             <Card>
               <CardHeader>
-                <CardTitle>Local Development Mode</CardTitle>
+                <CardTitle className="text-foreground">Local Development Mode</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                <div className="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
                   <div className="flex items-center gap-2 mb-2">
                     <CheckCircle2 className="w-5 h-5 text-green-600" />
-                    <span className="font-medium text-green-800">Instant Access Available</span>
+                    <span className="font-medium text-green-800 dark:text-green-200">Instant Access Available</span>
                   </div>
-                  <p className="text-sm text-green-700">
+                  <p className="text-sm text-green-700 dark:text-green-300">
                     In local development mode, you get instant access to all purchased content without payment processing.
                   </p>
                 </div>
@@ -242,7 +242,7 @@ export default function MockTestPurchase({ user }: MockTestPurchaseProps) {
             </Card>
 
             {/* Development Mode Info */}
-            <div className="flex items-center justify-center gap-4 text-sm text-gray-600">
+            <div className="flex items-center justify-center gap-4 text-sm text-muted-foreground dark:text-muted-foreground">
               <CheckCircle2 className="w-5 h-5 text-green-600" />
               <span>Local development mode - instant access without payment processing</span>
             </div>

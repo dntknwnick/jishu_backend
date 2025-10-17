@@ -109,11 +109,11 @@ export default function TestCardDashboard({ user }: TestCardDashboardProps) {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'available': return 'bg-green-100 text-green-800';
-      case 'in_progress': return 'bg-blue-100 text-blue-800';
-      case 'completed': return 'bg-gray-100 text-gray-800';
-      case 'disabled': return 'bg-red-100 text-red-800';
-      default: return 'bg-gray-100 text-gray-800';
+      case 'available': return 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200';
+      case 'in_progress': return 'bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200';
+      case 'completed': return 'bg-gray-100 dark:bg-gray-700 text-foreground dark:text-gray-200';
+      case 'disabled': return 'bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200';
+      default: return 'bg-gray-100 dark:bg-gray-700 text-foreground dark:text-gray-200';
     }
   };
 
@@ -134,11 +134,11 @@ export default function TestCardDashboard({ user }: TestCardDashboardProps) {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-background dark:bg-slate-900">
         <div className="container mx-auto px-4 py-8">
           <div className="text-center py-12">
-            <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4" />
-            <p>Loading your test cards...</p>
+            <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-foreground" />
+            <p className="text-foreground">Loading your test cards...</p>
           </div>
         </div>
       </div>
@@ -147,12 +147,12 @@ export default function TestCardDashboard({ user }: TestCardDashboardProps) {
 
   if (testCardsBySubject.length === 0) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-background dark:bg-slate-900">
         <div className="container mx-auto px-4 py-8">
           <div className="text-center py-12">
-            <Target className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <h3 className="text-xl text-gray-600 mb-2">No test cards available</h3>
-            <p className="text-gray-500 mb-4">Purchase a course to get access to 50 test cards per subject</p>
+            <Target className="w-16 h-16 text-muted-foreground dark:text-muted-foreground mx-auto mb-4" />
+            <h3 className="text-xl text-muted-foreground dark:text-muted-foreground mb-2">No test cards available</h3>
+            <p className="text-muted-foreground dark:text-muted-foreground mb-4">Purchase a course to get access to 50 test cards per subject</p>
             <Link to="/courses">
               <Button>Browse Courses</Button>
             </Link>
@@ -163,11 +163,11 @@ export default function TestCardDashboard({ user }: TestCardDashboardProps) {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-background dark:bg-slate-900">
       <div className="container mx-auto px-4 py-8">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Test Card Dashboard</h1>
-          <p className="text-gray-600">
+          <h1 className="text-3xl font-bold text-foreground mb-2">Test Card Dashboard</h1>
+          <p className="text-muted-foreground dark:text-muted-foreground">
             Access your test cards with up to 3 attempts each. Latest attempt scores count for analytics.
           </p>
         </div>
@@ -181,32 +181,32 @@ export default function TestCardDashboard({ user }: TestCardDashboardProps) {
           <TabsContent value="all" className="space-y-6">
             {testCardsBySubject.map((subject) => (
               <Card key={subject.subject_id} className="overflow-hidden">
-                <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50">
+                <CardHeader className="bg-gradient-to-r from-blue-50 dark:from-blue-900 to-indigo-50 dark:to-indigo-900">
                   <div className="flex items-center justify-between">
                     <div>
-                      <CardTitle className="text-xl">{subject.subject_name}</CardTitle>
-                      <p className="text-sm text-gray-600">{subject.course_name}</p>
+                      <CardTitle className="text-xl text-foreground">{subject.subject_name}</CardTitle>
+                      <p className="text-sm text-muted-foreground dark:text-muted-foreground">{subject.course_name}</p>
                     </div>
                     <div className="text-right">
-                      <div className="text-2xl font-bold text-blue-600">
+                      <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
                         {subject.completed_cards}/{subject.total_cards}
                       </div>
-                      <p className="text-sm text-gray-600">Tests Completed</p>
+                      <p className="text-sm text-muted-foreground dark:text-muted-foreground">Tests Completed</p>
                     </div>
                   </div>
-                  
+
                   <div className="grid grid-cols-3 gap-4 mt-4">
                     <div className="text-center">
-                      <div className="text-lg font-semibold text-green-600">{subject.available_cards}</div>
-                      <p className="text-xs text-gray-600">Available</p>
+                      <div className="text-lg font-semibold text-green-600 dark:text-green-400">{subject.available_cards}</div>
+                      <p className="text-xs text-muted-foreground">Available</p>
                     </div>
                     <div className="text-center">
-                      <div className="text-lg font-semibold text-blue-600">{subject.completed_cards}</div>
-                      <p className="text-xs text-gray-600">Completed</p>
+                      <div className="text-lg font-semibold text-blue-600 dark:text-blue-400">{subject.completed_cards}</div>
+                      <p className="text-xs text-muted-foreground dark:text-muted-foreground">Completed</p>
                     </div>
                     <div className="text-center">
-                      <div className="text-lg font-semibold text-red-600">{subject.disabled_cards}</div>
-                      <p className="text-xs text-gray-600">Disabled</p>
+                      <div className="text-lg font-semibold text-red-600 dark:text-red-400">{subject.disabled_cards}</div>
+                      <p className="text-xs text-muted-foreground dark:text-muted-foreground">Disabled</p>
                     </div>
                   </div>
                   
@@ -227,7 +227,7 @@ export default function TestCardDashboard({ user }: TestCardDashboardProps) {
                       >
                         <CardContent className="p-4">
                           <div className="flex items-center justify-between mb-3">
-                            <div className="text-lg font-bold text-gray-900">
+                            <div className="text-lg font-bold text-foreground">
                               Test #{card.test_number}
                             </div>
                             <Badge className={getStatusColor(card.status)}>
@@ -240,15 +240,15 @@ export default function TestCardDashboard({ user }: TestCardDashboardProps) {
 
                           <div className="space-y-2 text-sm">
                             <div className="flex justify-between">
-                              <span className="text-gray-600">Attempts:</span>
-                              <span className="font-medium">
+                              <span className="text-muted-foreground dark:text-muted-foreground">Attempts:</span>
+                              <span className="font-medium text-foreground">
                                 {card.attempts_used}/{card.max_attempts}
                               </span>
                             </div>
                             
                             {card.latest_score > 0 && (
                               <div className="flex justify-between">
-                                <span className="text-gray-600">Latest Score:</span>
+                                <span className="text-muted-foreground">Latest Score:</span>
                                 <span className="font-medium text-blue-600">
                                   {card.latest_score}/50 ({card.latest_percentage}%)
                                 </span>
@@ -256,7 +256,7 @@ export default function TestCardDashboard({ user }: TestCardDashboardProps) {
                             )}
                             
                             <div className="flex justify-between">
-                              <span className="text-gray-600">Last Attempt:</span>
+                              <span className="text-muted-foreground">Last Attempt:</span>
                               <span className="font-medium text-xs">
                                 {formatDate(card.latest_attempt_date)}
                               </span>
@@ -267,7 +267,7 @@ export default function TestCardDashboard({ user }: TestCardDashboardProps) {
                             <Button
                               onClick={() => handleStartTest(card)}
                               disabled={isStartingTest}
-                              className="w-full mt-4"
+                              className="w-full mt-4 !bg-slate-900 !text-white hover:!bg-slate-800 dark:!bg-slate-700 dark:hover:!bg-slate-600"
                               size="sm"
                             >
                               {isStartingTest && startingTestId === card.id ? (
@@ -305,14 +305,14 @@ export default function TestCardDashboard({ user }: TestCardDashboardProps) {
             <Card>
               <CardHeader>
                 <CardTitle>Performance Analytics</CardTitle>
-                <p className="text-sm text-gray-600">
+                <p className="text-sm text-muted-foreground">
                   Analytics are based on your latest attempt scores only
                 </p>
               </CardHeader>
               <CardContent>
                 <div className="text-center py-8">
-                  <Brain className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                  <p className="text-gray-500">Analytics feature coming soon...</p>
+                  <Brain className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+                  <p className="text-muted-foreground">Analytics feature coming soon...</p>
                 </div>
               </CardContent>
             </Card>

@@ -137,24 +137,24 @@ export default function MCQGenerator({ user }: MCQGeneratorProps) {
     <Card key={index} className="mb-6">
       <CardHeader className="pb-4">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-lg">Question {index + 1}</CardTitle>
+          <CardTitle className="text-lg text-foreground">Question {index + 1}</CardTitle>
           {question.difficulty && (
             <Badge variant="outline">{question.difficulty}</Badge>
           )}
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        <p className="text-lg font-medium">{question.question}</p>
-        
+        <p className="text-lg font-medium text-foreground">{question.question}</p>
+
         <div className="space-y-2">
           {question.options.map((option, optionIndex) => (
-            <div 
-              key={optionIndex} 
+            <div
+              key={optionIndex}
               className={`p-3 border rounded-lg ${
-                option.startsWith(question.correct_answer) || 
+                option.startsWith(question.correct_answer) ||
                 option.includes(question.correct_answer)
-                  ? 'border-green-500 bg-green-50' 
-                  : 'border-gray-200'
+                  ? 'border-green-500 bg-green-50 dark:bg-green-900/20 text-foreground'
+                  : 'border-gray-200 dark:border-gray-700 text-foreground'
               }`}
             >
               <span className="font-medium mr-2">{String.fromCharCode(65 + optionIndex)}.</span>
@@ -162,11 +162,11 @@ export default function MCQGenerator({ user }: MCQGeneratorProps) {
             </div>
           ))}
         </div>
-        
+
         {question.explanation && (
-          <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-            <h4 className="font-semibold text-blue-900 mb-2">Explanation:</h4>
-            <p className="text-blue-800">{question.explanation}</p>
+          <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+            <h4 className="font-semibold text-foreground dark:text-blue-200 mb-2">Explanation:</h4>
+            <p className="text-blue-800 dark:text-blue-300">{question.explanation}</p>
           </div>
         )}
       </CardContent>
@@ -174,42 +174,42 @@ export default function MCQGenerator({ user }: MCQGeneratorProps) {
   );
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-background dark:bg-slate-900">
       <Header user={user} />
-      
+
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-4xl mx-auto">
           {/* Header */}
           <div className="text-center mb-8">
             <div className="flex items-center justify-center gap-3 mb-4">
               <Brain className="w-8 h-8 text-blue-600" />
-              <h1 className="text-3xl font-bold">MCQ Generator</h1>
+              <h1 className="text-3xl font-bold text-foreground">MCQ Generator</h1>
               <Sparkles className="w-8 h-8 text-yellow-500" />
             </div>
-            <p className="text-gray-600">Generate multiple-choice questions using AI from text content or PDF documents</p>
+            <p className="text-muted-foreground dark:text-muted-foreground">Generate multiple-choice questions using AI from text content or PDF documents</p>
           </div>
 
           {/* AI Status Card */}
           <Card className="mb-6">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
+              <CardTitle className="flex items-center gap-2 text-foreground">
                 <Settings className="w-5 h-5" />
                 AI Service Status
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <Button 
-                onClick={checkAIStatus} 
+              <Button
+                onClick={checkAIStatus}
                 disabled={loading}
                 className="w-full sm:w-auto"
               >
                 {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
                 Check AI Status
               </Button>
-              
+
               {aiStatus && (
-                <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-                  <div className="grid grid-cols-2 gap-4 text-sm">
+                <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                  <div className="grid grid-cols-2 gap-4 text-sm text-foreground">
                     <div>Status: <Badge variant={aiStatus.status === 'running' ? 'default' : 'destructive'}>{aiStatus.status}</Badge></div>
                     <div>PDFs Loaded: <Badge variant="outline">{aiStatus.pdfs_loaded}</Badge></div>
                     <div>Ollama: <Badge variant={aiStatus.dependencies.ollama ? 'default' : 'destructive'}>{aiStatus.dependencies.ollama ? 'Available' : 'Not Available'}</Badge></div>
@@ -229,7 +229,7 @@ export default function MCQGenerator({ user }: MCQGeneratorProps) {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-sm text-gray-600">
+              <p className="text-sm text-muted-foreground">
                 Generate hard-level MCQ questions from PDF textbooks in the pdfs/subjects/ directory.
               </p>
             </CardContent>
@@ -252,7 +252,7 @@ export default function MCQGenerator({ user }: MCQGeneratorProps) {
                     placeholder="e.g., Biology, Mathematics, History"
                     required
                   />
-                  <p className="text-sm text-gray-500">
+                  <p className="text-sm text-muted-foreground">
                     Must match a folder name in pdfs/subjects/ directory
                   </p>
                 </div>
@@ -284,8 +284,8 @@ export default function MCQGenerator({ user }: MCQGeneratorProps) {
                 <div className="space-y-2">
                   <Label className="text-sm font-medium">Difficulty Level</Label>
                   <div className="p-3 bg-gray-50 rounded-md">
-                    <span className="text-sm text-gray-600">Hard (Fixed)</span>
-                    <p className="text-xs text-gray-500 mt-1">
+                    <span className="text-sm text-muted-foreground">Hard (Fixed)</span>
+                    <p className="text-xs text-muted-foreground mt-1">
                       All questions are generated at hard difficulty level
                     </p>
                   </div>

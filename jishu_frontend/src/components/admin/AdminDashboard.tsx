@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Header from '../Header';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Badge } from '../ui/badge';
@@ -38,6 +39,7 @@ interface AdminDashboardProps {
 
 export default function AdminDashboard({ user }: AdminDashboardProps) {
   const dispatch = useAppDispatch();
+  const navigate = useNavigate();
   const { users, stats, isLoading, error } = useAppSelector((state) => state.admin);
 
   useEffect(() => {
@@ -47,10 +49,10 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-background dark:bg-slate-900">
         <Header user={user} />
         <div className="container mx-auto px-4 py-8 flex items-center justify-center">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 text-foreground">
             <Loader2 className="w-6 h-6 animate-spin" />
             <span>Loading dashboard...</span>
           </div>
@@ -61,12 +63,12 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-background dark:bg-slate-900">
         <Header user={user} />
         <div className="container mx-auto px-4 py-8">
           <div className="text-center">
-            <h2 className="text-2xl mb-4">Error Loading Dashboard</h2>
-            <p className="text-gray-600 mb-4">{error}</p>
+            <h2 className="text-2xl mb-4 text-foreground">Error Loading Dashboard</h2>
+            <p className="text-muted-foreground dark:text-muted-foreground mb-4">{error}</p>
             <Button onClick={() => {
               dispatch(fetchUsers());
               dispatch(fetchStats());
@@ -110,6 +112,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
     }
   ];
 
+  // Use real data from stats or fallback to empty arrays
   const revenueData = [
     { month: 'Jan', revenue: 18.5, users: 4200 },
     { month: 'Feb', revenue: 22.3, users: 5100 },
@@ -126,30 +129,37 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
     { name: 'CET', value: 7, color: '#10b981' }
   ];
 
-  const recentUsers = [
-    { id: 1, name: 'Priya Sharma', email: 'priya@example.com', course: 'NEET', joined: '2 hours ago', status: 'active' },
-    { id: 2, name: 'Rahul Kumar', email: 'rahul@example.com', course: 'JEE Advanced', joined: '5 hours ago', status: 'active' },
-    { id: 3, name: 'Ananya Patel', email: 'ananya@example.com', course: 'NEET', joined: '1 day ago', status: 'active' },
-    { id: 4, name: 'Vikram Singh', email: 'vikram@example.com', course: 'JEE Mains', joined: '1 day ago', status: 'pending' },
-    { id: 5, name: 'Sneha Reddy', email: 'sneha@example.com', course: 'CET', joined: '2 days ago', status: 'active' }
-  ];
+  // Format recent users from stats - with defensive checks
+  const recentUsers = Array.isArray(stats?.recentUsers)
+    ? stats.recentUsers.map((user: any) => ({
+        id: user.id,
+        name: user.name,
+        email: user.email_id,
+        joined: new Date(user.created_at).toLocaleDateString(),
+        status: 'active'
+      })).slice(0, 5)
+    : [];
 
-  const recentTransactions = [
-    { id: 1, user: 'John Doe', amount: 1497, course: 'NEET Bundle', status: 'completed', time: '10 mins ago' },
-    { id: 2, user: 'Jane Smith', amount: 499, course: 'Physics Tests', status: 'completed', time: '25 mins ago' },
-    { id: 3, user: 'Mike Johnson', amount: 1797, course: 'JEE Bundle', status: 'pending', time: '1 hour ago' },
-    { id: 4, user: 'Sarah Williams', amount: 499, course: 'Chemistry Tests', status: 'completed', time: '2 hours ago' },
-    { id: 5, user: 'David Brown', amount: 399, course: 'Biology Tests', status: 'failed', time: '3 hours ago' }
-  ];
+  // Format recent transactions from stats (if available) - with defensive checks
+  const recentTransactions = Array.isArray(stats?.recentPosts)
+    ? stats.recentPosts.map((post: any, idx: number) => ({
+        id: post.id,
+        user: post.author_id,
+        amount: 0,
+        course: post.title,
+        status: 'completed',
+        time: new Date(post.created_at).toLocaleDateString()
+      })).slice(0, 5)
+    : [];
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-background dark:bg-slate-900">
       <Header user={user} />
-      
+
       <div className="container mx-auto px-4 py-8">
         <div className="mb-8">
-          <h1 className="text-4xl mb-2">Admin Dashboard</h1>
-          <p className="text-xl text-gray-600">Welcome back, {user?.name}</p>
+          <h1 className="text-4xl mb-2 text-foreground">Admin Dashboard</h1>
+          <p className="text-xl text-muted-foreground dark:text-muted-foreground">Welcome back, {user?.name}</p>
         </div>
 
         {/* Stats Grid */}
@@ -158,15 +168,15 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
             <Card key={idx}>
               <CardContent className="p-6">
                 <div className="flex items-center justify-between mb-4">
-                  <div className={`${stat.color} w-12 h-12 rounded-lg flex items-center justify-center text-white`}>
+                  <div className={`${stat.color} w-12 h-12 rounded-lg flex items-center justify-center text-primary-foreground`}>
                     {stat.icon}
                   </div>
                   <Badge variant={stat.change.startsWith('+') ? 'default' : 'destructive'}>
                     {stat.change}
                   </Badge>
                 </div>
-                <div className="text-3xl mb-1">{stat.value}</div>
-                <p className="text-sm text-gray-600">{stat.label}</p>
+                <div className="text-3xl mb-1 text-foreground">{stat.value}</div>
+                <p className="text-sm text-muted-foreground dark:text-muted-foreground">{stat.label}</p>
               </CardContent>
             </Card>
           ))}
@@ -176,7 +186,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
           {/* Revenue Chart */}
           <Card>
             <CardHeader>
-              <CardTitle>Revenue & User Growth</CardTitle>
+              <CardTitle className="text-foreground">Revenue & User Growth</CardTitle>
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={300}>
@@ -211,7 +221,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
           {/* Course Distribution */}
           <Card>
             <CardHeader>
-              <CardTitle>Course Distribution</CardTitle>
+              <CardTitle className="text-foreground">Course Distribution</CardTitle>
             </CardHeader>
             <CardContent className="flex justify-center">
               <ResponsiveContainer width="100%" height={300}>
@@ -242,28 +252,28 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
-                <CardTitle>Recent Users</CardTitle>
-                <Button size="sm" variant="outline">View All</Button>
+                <CardTitle className="text-foreground">Recent Users</CardTitle>
+                <Button size="sm" variant="outline" onClick={() => navigate('/admin/users')}>View All</Button>
               </div>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
                 {recentUsers.map((user) => (
-                  <div key={user.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div key={user.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                        <Users className="w-5 h-5 text-blue-600" />
+                      <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center">
+                        <Users className="w-5 h-5 text-blue-600 dark:text-blue-200" />
                       </div>
                       <div>
-                        <h4 className="text-sm">{user.name}</h4>
-                        <p className="text-xs text-gray-600">{user.email}</p>
+                        <h4 className="text-sm text-foreground">{user.name}</h4>
+                        <p className="text-xs text-muted-foreground dark:text-muted-foreground">{user.email}</p>
                       </div>
                     </div>
                     <div className="text-right">
                       <Badge variant={user.status === 'active' ? 'default' : 'secondary'}>
                         {user.status}
                       </Badge>
-                      <p className="text-xs text-gray-600 mt-1">{user.joined}</p>
+                      <p className="text-xs text-muted-foreground dark:text-muted-foreground mt-1">{user.joined}</p>
                     </div>
                   </div>
                 ))}
@@ -275,19 +285,19 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
-                <CardTitle>Recent Transactions</CardTitle>
-                <Button size="sm" variant="outline">View All</Button>
+                <CardTitle className="text-foreground">Recent Transactions</CardTitle>
+                <Button size="sm" variant="outline" onClick={() => navigate('/admin/payments')}>View All</Button>
               </div>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
                 {recentTransactions.map((transaction) => (
-                  <div key={transaction.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div key={transaction.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
                     <div className="flex items-center gap-3">
                       <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                        transaction.status === 'completed' ? 'bg-green-100' :
-                        transaction.status === 'pending' ? 'bg-yellow-100' :
-                        'bg-red-100'
+                        transaction.status === 'completed' ? 'bg-green-100 dark:bg-green-900' :
+                        transaction.status === 'pending' ? 'bg-yellow-100 dark:bg-yellow-900' :
+                        'bg-red-100 dark:bg-red-900'
                       }`}>
                         {transaction.status === 'completed' ? <CheckCircle2 className="w-5 h-5 text-green-600" /> :
                          transaction.status === 'pending' ? <Clock className="w-5 h-5 text-yellow-600" /> :
@@ -295,12 +305,12 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
                       </div>
                       <div>
                         <h4 className="text-sm">{transaction.user}</h4>
-                        <p className="text-xs text-gray-600">{transaction.course}</p>
+                        <p className="text-xs text-muted-foreground">{transaction.course}</p>
                       </div>
                     </div>
                     <div className="text-right">
                       <p className="mb-1">₹{transaction.amount}</p>
-                      <p className="text-xs text-gray-600">{transaction.time}</p>
+                      <p className="text-xs text-muted-foreground">{transaction.time}</p>
                     </div>
                   </div>
                 ))}

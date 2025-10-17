@@ -45,18 +45,18 @@ export default function Header({ user }: HeaderProps) {
   const navItems = isAdmin ? adminNavItems : userNavItems;
 
   return (
-    <header className="border-b bg-white/80 backdrop-blur-md sticky top-0 z-50">
+    <header className="border-b bg-background/80 dark:bg-background/80 backdrop-blur-md sticky top-0 z-50">
       <div className="container mx-auto px-4 py-3 flex items-center justify-between">
         {/* Logo */}
         <Link to={isAdmin ? '/admin' : '/courses'} className="flex items-center gap-2">
           <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
-            <Target className="w-6 h-6 text-white" />
+            <Target className="w-6 h-6 text-primary-foreground" />
           </div>
           <span className="text-xl bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent hidden sm:inline">
             Jishu App
           </span>
           {isAdmin && (
-            <span className="ml-2 px-2 py-1 bg-purple-100 text-purple-700 text-xs rounded-md flex items-center gap-1">
+            <span className="ml-2 px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-200 text-xs rounded-md flex items-center gap-1">
               <Shield className="w-3 h-3" />
               Admin
             </span>
@@ -119,9 +119,9 @@ export default function Header({ user }: HeaderProps) {
               <DropdownMenuLabel>
                 <div className="flex flex-col space-y-1">
                   <div className="flex items-center gap-2">
-                    <p>{user?.name}</p>
+                    <p className="text-foreground">{user?.name}</p>
                     {isAdmin && (
-                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200">
                         <Shield className="w-3 h-3 mr-1" />
                         Admin
                       </span>

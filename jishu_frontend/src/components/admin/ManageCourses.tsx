@@ -347,10 +347,10 @@ export default function ManageCourses({ user }: ManageCoursesProps) {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-background dark:bg-slate-900">
         <Header user={user} />
         <div className="container mx-auto px-4 py-8 flex items-center justify-center">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 text-foreground">
             <Loader2 className="w-6 h-6 animate-spin" />
             <span>Loading courses...</span>
           </div>
@@ -360,14 +360,14 @@ export default function ManageCourses({ user }: ManageCoursesProps) {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-background dark:bg-slate-900">
       <Header user={user} />
-      
+
       <div className="container mx-auto px-4 py-8">
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="text-4xl mb-2">Manage Courses & Subjects</h1>
-            <p className="text-xl text-gray-600">Create and manage test courses</p>
+            <h1 className="text-4xl mb-2 text-foreground">Manage Courses & Subjects</h1>
+            <p className="text-xl text-muted-foreground dark:text-muted-foreground">Create and manage test courses</p>
           </div>
           <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
             <DialogTrigger asChild>
@@ -378,13 +378,13 @@ export default function ManageCourses({ user }: ManageCoursesProps) {
             </DialogTrigger>
             <DialogContent className="max-w-2xl">
               <DialogHeader>
-                <DialogTitle>Create New Course</DialogTitle>
-                <DialogDescription>Add a new course or test series</DialogDescription>
+                <DialogTitle className="text-foreground">Create New Course</DialogTitle>
+                <DialogDescription className="text-muted-foreground dark:text-muted-foreground">Add a new course or test series</DialogDescription>
               </DialogHeader>
               <div className="grid gap-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="name">Course Name *</Label>
+                    <Label htmlFor="name" className="text-foreground">Course Name *</Label>
                     <Input
                       id="name"
                       placeholder="e.g., NEET, JEE Advanced"
@@ -449,7 +449,7 @@ export default function ManageCourses({ user }: ManageCoursesProps) {
         {/* Search */}
         <div className="flex items-center gap-4 mb-8">
           <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
             <Input
               placeholder="Search courses..."
               value={searchQuery}
@@ -465,8 +465,8 @@ export default function ManageCourses({ user }: ManageCoursesProps) {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600 mb-1">Total Courses</p>
-                  <p className="text-3xl">{filteredCourses.length}</p>
+                  <p className="text-sm text-muted-foreground dark:text-muted-foreground mb-1">Total Courses</p>
+                  <p className="text-3xl text-foreground">{filteredCourses.length}</p>
                 </div>
                 <BookOpen className="w-10 h-10 text-blue-600" />
               </div>
@@ -476,8 +476,8 @@ export default function ManageCourses({ user }: ManageCoursesProps) {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600 mb-1">Total Students</p>
-                  <p className="text-3xl">{filteredCourses.reduce((sum, c) => sum + (c.students || 0), 0).toLocaleString()}</p>
+                  <p className="text-sm text-muted-foreground dark:text-muted-foreground mb-1">Total Students</p>
+                  <p className="text-3xl text-foreground">{filteredCourses.reduce((sum, c) => sum + (c.students || 0), 0).toLocaleString()}</p>
                 </div>
                 <Users className="w-10 h-10 text-green-600" />
               </div>
@@ -487,8 +487,8 @@ export default function ManageCourses({ user }: ManageCoursesProps) {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600 mb-1">Total Revenue</p>
-                  <p className="text-3xl">₹{filteredCourses.reduce((sum, c) => sum + (c.amount || 0), 0).toLocaleString()}</p>
+                  <p className="text-sm text-muted-foreground dark:text-muted-foreground mb-1">Total Revenue</p>
+                  <p className="text-3xl text-foreground">₹{filteredCourses.reduce((sum, c) => sum + (c.amount || 0), 0).toLocaleString()}</p>
                 </div>
                 <DollarSign className="w-10 h-10 text-purple-600" />
               </div>
@@ -523,38 +523,38 @@ export default function ManageCourses({ user }: ManageCoursesProps) {
                     <div className={`w-16 h-16 ${colorScheme.icon} rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}>
                       <BookOpen className="w-8 h-8" />
                     </div>
-                    <div className="flex items-center gap-1 text-sm text-gray-600">
+                    <div className="flex items-center gap-1 text-sm text-muted-foreground dark:text-muted-foreground">
                       <span className="font-medium">{testCount}</span>
                       <span>Tests</span>
                     </div>
                   </div>
 
                   <div>
-                    <CardTitle className="text-2xl mb-2">{course.course_name || course.name}</CardTitle>
-                    <p className="text-gray-600 text-sm mb-3">{course.description}</p>
+                    <CardTitle className="text-2xl mb-2 text-foreground">{course.course_name || course.name}</CardTitle>
+                    <p className="text-muted-foreground dark:text-muted-foreground text-sm mb-3">{course.description}</p>
 
                     {/* Subject Tags */}
                     <div className="flex flex-wrap gap-2 mb-4">
                       {courseSubjects[course.id] && courseSubjects[course.id].length > 0 ? (
                         courseSubjects[course.id].slice(0, 3).map((subject: any) => (
-                          <span key={subject.id} className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded-md">
+                          <span key={subject.id} className="px-2 py-1 bg-gray-100 dark:bg-gray-800 text-foreground dark:text-muted-foreground text-xs rounded-md">
                             {subject.subject_name}
                           </span>
                         ))
                       ) : (
-                        <span className="px-2 py-1 bg-gray-100 text-gray-500 text-xs rounded-md">
+                        <span className="px-2 py-1 bg-gray-100 dark:bg-gray-800 text-muted-foreground dark:text-muted-foreground text-xs rounded-md">
                           No subjects yet
                         </span>
                       )}
                       {subjectCount > 3 && (
-                        <span className="px-2 py-1 bg-gray-100 text-gray-500 text-xs rounded-md">
+                        <span className="px-2 py-1 bg-gray-100 dark:bg-gray-800 text-muted-foreground dark:text-muted-foreground text-xs rounded-md">
                           +{subjectCount - 3} more
                         </span>
                       )}
                     </div>
 
                     {/* Student Count */}
-                    <div className="flex items-center gap-2 text-sm text-gray-600 mb-4">
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
                       <Users className="w-4 h-4" />
                       <span>{studentCount.toLocaleString()} students</span>
                     </div>
@@ -565,7 +565,7 @@ export default function ManageCourses({ user }: ManageCoursesProps) {
                   {/* Admin Action Buttons */}
                   <div className="flex flex-wrap gap-2 mb-4">
                     <Button
-                      className={`${colorScheme.button} text-white border-0`}
+                      className={`${colorScheme.button} text-primary-foreground border-0`}
                       size="sm"
                       onClick={() => handleAddSubject(course)}
                     >
@@ -595,7 +595,7 @@ export default function ManageCourses({ user }: ManageCoursesProps) {
                   {/* Expandable Subjects Section */}
                   <div className="border-t pt-4">
                     <div className="flex items-center justify-between mb-3">
-                      <h4 className="font-medium text-gray-900">Subjects</h4>
+                      <h4 className="font-medium text-foreground">Subjects</h4>
                       <Button
                         variant="ghost"
                         size="sm"
@@ -621,7 +621,7 @@ export default function ManageCourses({ user }: ManageCoursesProps) {
                         {loadingSubjects.has(course.id) ? (
                           <div className="flex items-center justify-center py-6">
                             <Loader2 className="w-5 h-5 animate-spin mr-2" />
-                            <span className="text-gray-600">Loading subjects...</span>
+                            <span className="text-muted-foreground">Loading subjects...</span>
                           </div>
                         ) : courseSubjects[course.id] && courseSubjects[course.id].length > 0 ? (
                           courseSubjects[course.id].map((subject: any) => (
@@ -636,7 +636,7 @@ export default function ManageCourses({ user }: ManageCoursesProps) {
                                     <span className="px-2 py-1 bg-red-100 text-red-700 text-xs rounded-md">Deleted</span>
                                   )}
                                 </div>
-                                <div className="flex items-center gap-4 mt-1 text-sm text-gray-600">
+                                <div className="flex items-center gap-4 mt-1 text-sm text-muted-foreground">
                                   <span>₹{subject.amount || 0}</span>
                                   {subject.offer_amount && (
                                     <span className="text-green-600">Offer: ₹{subject.offer_amount}</span>
@@ -668,7 +668,7 @@ export default function ManageCourses({ user }: ManageCoursesProps) {
                             </div>
                           ))
                         ) : (
-                          <div className="text-center py-6 text-gray-500">
+                          <div className="text-center py-6 text-muted-foreground">
                             <BookOpen className="w-8 h-8 mx-auto mb-2 opacity-50" />
                             <p>No subjects added yet</p>
                             <p className="text-sm">Click "Add Subject" to get started</p>

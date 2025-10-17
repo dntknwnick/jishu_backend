@@ -10,7 +10,7 @@ class User(db.Model):
     __tablename__ = 'users'
     
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    mobile_no = db.Column(db.String(20), nullable=False)
+    mobile_no = db.Column(db.String(20), nullable=True)  # Nullable for Google OAuth users
     email_id = db.Column(db.String(100), nullable=False, unique=True)
     name = db.Column(db.String(100), nullable=False)
     password = db.Column(db.String(255), nullable=True)  # Nullable for Google OAuth users
@@ -29,7 +29,15 @@ class User(db.Model):
     auth_provider = db.Column(db.Enum('manual', 'google'), default='manual')
     refresh_token = db.Column(db.Text, nullable=True)
     refresh_token_expires_at = db.Column(db.DateTime, nullable=True)
-    
+
+    # Profile fields
+    avatar = db.Column(db.String(500), nullable=True)
+    address = db.Column(db.String(500), nullable=True)
+    gender = db.Column(db.Enum('male', 'female', 'other'), nullable=True)
+    date_of_birth = db.Column(db.Date, nullable=True)
+    city = db.Column(db.String(100), nullable=True)
+    state = db.Column(db.String(100), nullable=True)
+
     def set_password(self, password):
         """Hash and set password"""
         self.password = generate_password_hash(password)
@@ -104,7 +112,13 @@ class User(db.Model):
             'status': self.status,
             'source': self.source,
             'google_id': self.google_id,
-            'auth_provider': self.auth_provider
+            'auth_provider': self.auth_provider,
+            'avatar': self.avatar,
+            'address': self.address,
+            'gender': self.gender,
+            'date_of_birth': self.date_of_birth.isoformat() if self.date_of_birth else None,
+            'city': self.city,
+            'state': self.state
         }
     
     def __repr__(self):

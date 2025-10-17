@@ -15,11 +15,11 @@ class MockTestService:
     @staticmethod
     def create_test_cards_for_purchase(purchase_id: int) -> Dict:
         """
-        Create 50 test cards for each subject in a purchase
-        
+        Create test cards for each subject in a purchase based on total_mock value
+
         Args:
             purchase_id: ID of the purchase
-            
+
         Returns:
             Dict with creation results
         """
@@ -37,7 +37,6 @@ class MockTestService:
                     'success': True,
                     'cards_created': total_existing,
                     'subjects_count': len(set(card.subject_id for card in MockTestAttempt.query.filter_by(purchase_id=purchase_id).all())),
-                    'cards_per_subject': 50,
                     'message': 'Test cards already exist for this purchase'
                 }
 
@@ -48,10 +47,18 @@ class MockTestService:
                 return {'success': False, 'error': 'No subjects found for purchase'}
 
             created_cards = []
-            
+
             for subject_id in subject_ids:
-                # Create 50 test cards for this subject
-                for test_number in range(1, 51):
+                # Get the subject to retrieve total_mock value
+                subject = ExamCategorySubject.query.get(subject_id)
+                if not subject:
+                    continue
+
+                # Use total_mock from subject, default to 50 if not set
+                total_mock = subject.total_mock or 50
+
+                # Create test cards based on total_mock value
+                for test_number in range(1, total_mock + 1):
                     mock_test = MockTestAttempt(
                         purchase_id=purchase.id,
                         user_id=purchase.user_id,
@@ -64,23 +71,22 @@ class MockTestService:
                         total_questions=50,
                         status='available'
                     )
-                    
+
                     db.session.add(mock_test)
                     created_cards.append({
                         'subject_id': subject_id,
                         'test_number': test_number
                     })
-            
+
             db.session.commit()
-            
+
             return {
                 'success': True,
                 'cards_created': len(created_cards),
                 'subjects_count': len(subject_ids),
-                'cards_per_subject': 50,
                 'details': created_cards
             }
-            
+
         except IntegrityError as e:
             db.session.rollback()
             return {'success': False, 'error': f'Database integrity error: {str(e)}'}
@@ -92,29 +98,35 @@ class MockTestService:
     def get_user_test_cards(user_id: int, subject_id: Optional[int] = None) -> List[Dict]:
         """
         Get all test cards for a user, optionally filtered by subject
-        
+        Excludes bundle subjects (is_bundle=1) from results
+
         Args:
             user_id: ID of the user
             subject_id: Optional subject ID to filter by
-            
+
         Returns:
             List of test card dictionaries
         """
         query = MockTestAttempt.query.filter_by(user_id=user_id)
-        
+
         if subject_id:
             query = query.filter_by(subject_id=subject_id)
-        
+
         # Join with purchase to ensure only active purchases
-        query = query.join(ExamCategoryPurchase).filter(
+        query = query.join(ExamCategoryPurchase, MockTestAttempt.purchase_id == ExamCategoryPurchase.id).filter(
             ExamCategoryPurchase.status == 'active'
         )
-        
+
+        # Join with subject to filter out bundle subjects
+        query = query.join(ExamCategorySubject, MockTestAttempt.subject_id == ExamCategorySubject.id).filter(
+            ExamCategorySubject.is_bundle == False
+        )
+
         test_cards = query.order_by(
             MockTestAttempt.subject_id,
             MockTestAttempt.test_number
         ).all()
-        
+
         return [card.to_dict() for card in test_cards]
     
     @staticmethod

@@ -100,24 +100,24 @@ export default function UserProfile({ user, onUpdateUser }: UserProfileProps) {
                 </Avatar>
                 <div>
                   <h2 className="text-2xl mb-1">{user?.name}</h2>
-                  <p className="text-gray-600">{formData.targetExam} Aspirant</p>
+                  <p className="text-muted-foreground">{formData.targetExam} Aspirant</p>
                   <Badge className="mt-2">Premium Member</Badge>
                 </div>
                 <Separator />
                 <div className="space-y-2 text-sm text-left">
-                  <div className="flex items-center gap-2 text-gray-600">
+                  <div className="flex items-center gap-2 text-muted-foreground">
                     <Mail className="w-4 h-4" />
                     <span>{user?.email}</span>
                   </div>
-                  <div className="flex items-center gap-2 text-gray-600">
+                  <div className="flex items-center gap-2 text-muted-foreground">
                     <Phone className="w-4 h-4" />
                     <span>{formData.phone}</span>
                   </div>
-                  <div className="flex items-center gap-2 text-gray-600">
+                  <div className="flex items-center gap-2 text-muted-foreground">
                     <MapPin className="w-4 h-4" />
                     <span>{formData.city}, {formData.state}</span>
                   </div>
-                  <div className="flex items-center gap-2 text-gray-600">
+                  <div className="flex items-center gap-2 text-muted-foreground">
                     <Calendar className="w-4 h-4" />
                     <span>Member since Jan 2025</span>
                   </div>
@@ -137,7 +137,7 @@ export default function UserProfile({ user, onUpdateUser }: UserProfileProps) {
                       <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
                         {stat.icon}
                       </div>
-                      <span className="text-sm text-gray-600">{stat.label}</span>
+                      <span className="text-sm text-muted-foreground">{stat.label}</span>
                     </div>
                     <span>{stat.value}</span>
                   </div>
@@ -156,7 +156,7 @@ export default function UserProfile({ user, onUpdateUser }: UserProfileProps) {
                     <span className="text-2xl">{achievement.icon}</span>
                     <div className="flex-1">
                       <h4 className="text-sm">{achievement.title}</h4>
-                      <p className="text-xs text-gray-600">{achievement.date}</p>
+                      <p className="text-xs text-muted-foreground">{achievement.date}</p>
                     </div>
                   </div>
                 ))}
@@ -305,7 +305,7 @@ export default function UserProfile({ user, onUpdateUser }: UserProfileProps) {
                         </div>
                         <div>
                           <h4>{purchase.course}</h4>
-                          <p className="text-sm text-gray-600">{purchase.date}</p>
+                          <p className="text-sm text-muted-foreground">{purchase.date}</p>
                         </div>
                       </div>
                       <div className="text-right">
@@ -330,7 +330,7 @@ export default function UserProfile({ user, onUpdateUser }: UserProfileProps) {
                       <span className="text-3xl">{achievement.icon}</span>
                       <div>
                         <h4>{achievement.title}</h4>
-                        <p className="text-xs text-gray-600">{achievement.date}</p>
+                        <p className="text-xs text-muted-foreground">{achievement.date}</p>
                       </div>
                     </div>
                   ))}

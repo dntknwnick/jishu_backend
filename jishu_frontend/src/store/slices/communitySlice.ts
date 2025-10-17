@@ -72,8 +72,12 @@ export const likePost = createAsyncThunk(
   'community/likePost',
   async (postId: number, { rejectWithValue }) => {
     try {
-      await communityApi.likePost(postId);
-      return postId;
+      const response = await communityApi.likePost(postId);
+      return {
+        postId,
+        liked: response.data?.liked,
+        likes_count: response.data?.likes_count
+      };
     } catch (error) {
       if (error instanceof ApiError) {
         return rejectWithValue(error.message);
@@ -163,11 +167,11 @@ const communitySlice = createSlice({
       
       // Like post
       .addCase(likePost.fulfilled, (state, action) => {
-        const postId = action.payload;
+        const { postId, liked, likes_count } = action.payload;
         const post = state.posts.find(p => p.id === postId);
         if (post) {
-          post.is_liked = !post.is_liked;
-          post.likes_count += post.is_liked ? 1 : -1;
+          post.is_liked = liked;
+          post.likes_count = likes_count;
         }
       })
       .addCase(likePost.rejected, (state, action) => {

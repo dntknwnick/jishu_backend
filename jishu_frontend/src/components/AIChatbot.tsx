@@ -227,30 +227,30 @@ export default function AIChatbot({ user }: AIChatbotProps) {
   };
 
   return (
-    <div className="h-screen bg-gray-50 flex flex-col">
+    <div className="h-screen bg-background dark:bg-slate-900 flex flex-col">
       <Header user={user} />
 
       <div className="flex-1 flex overflow-hidden">
         {/* Sidebar */}
-        <div className="w-80 bg-white border-r border-gray-200 p-4 space-y-6 overflow-y-auto">
+        <div className="w-80 bg-background dark:bg-card border-r border-border p-4 space-y-6 overflow-y-auto">
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
+                <CardTitle className="flex items-center gap-2 text-foreground">
                   <Sparkles className="w-5 h-5 text-purple-500" />
                   AI Assistant
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="flex items-center gap-3 p-3 bg-gradient-to-br from-purple-100 to-pink-100 rounded-lg">
+                <div className="flex items-center gap-3 p-3 bg-gradient-to-br from-purple-100 dark:from-purple-900 to-pink-100 dark:to-pink-900 rounded-lg">
                   <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
-                    <Bot className="w-6 h-6 text-white" />
+                    <Bot className="w-6 h-6 text-primary-foreground" />
                   </div>
                   <div>
-                    <h4>Jishu AI</h4>
+                    <h4 className="text-foreground">Jishu AI</h4>
                     <Badge variant="secondary" className="text-xs">Always Online</Badge>
                   </div>
                 </div>
-                <div className="space-y-2 text-sm text-gray-600">
+                <div className="space-y-2 text-sm text-muted-foreground dark:text-muted-foreground">
                   <p>✓ 24/7 Availability</p>
                   <p>✓ All Subjects</p>
                   <p>✓ Step-by-step Solutions</p>
@@ -262,31 +262,31 @@ export default function AIChatbot({ user }: AIChatbotProps) {
             {/* Token Status Card */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-base flex items-center gap-2">
+                <CardTitle className="text-base flex items-center gap-2 text-foreground">
                   <Sparkles className="w-5 h-5 text-blue-500" />
                   Daily Tokens
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">Used Today</span>
-                  <span className="font-medium">{tokenStatus.tokens_used_today}</span>
+                  <span className="text-sm text-muted-foreground dark:text-muted-foreground">Used Today</span>
+                  <span className="font-medium text-foreground">{tokenStatus.tokens_used_today}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">Daily Limit</span>
-                  <span className="font-medium">
+                  <span className="text-sm text-muted-foreground dark:text-muted-foreground">Daily Limit</span>
+                  <span className="font-medium text-foreground">
                     {tokenStatus.is_unlimited ? 'Unlimited' : tokenStatus.daily_limit}
                   </span>
                 </div>
                 {!tokenStatus.is_unlimited && (
                   <>
                     <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-600">Remaining</span>
-                      <span className="font-medium text-green-600">{tokenStatus.remaining_tokens}</span>
+                      <span className="text-sm text-muted-foreground dark:text-muted-foreground">Remaining</span>
+                      <span className="font-medium text-green-600 dark:text-green-400">{tokenStatus.remaining_tokens}</span>
                     </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
                       <div
-                        className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+                        className="bg-blue-500 dark:bg-blue-400 h-2 rounded-full transition-all duration-300"
                         style={{
                           width: `${Math.min(100, (tokenStatus.tokens_used_today / tokenStatus.daily_limit) * 100)}%`
                         }}
@@ -304,7 +304,7 @@ export default function AIChatbot({ user }: AIChatbotProps) {
 
             <Card>
               <CardHeader>
-                <CardTitle className="text-base flex items-center gap-2">
+                <CardTitle className="text-base flex items-center gap-2 text-foreground">
                   <Lightbulb className="w-5 h-5 text-yellow-500" />
                   Quick Topics
                 </CardTitle>
@@ -331,10 +331,10 @@ export default function AIChatbot({ user }: AIChatbotProps) {
               </CardContent>
             </Card>
 
-            <Card className="bg-gradient-to-br from-blue-50 to-purple-50 border-none">
+            <Card className="bg-gradient-to-br from-blue-50 dark:from-blue-900/20 to-purple-50 dark:to-purple-900/20 border-none">
               <CardContent className="p-4 space-y-2 text-sm">
-                <h4 className="flex items-center gap-2">💡 Pro Tip</h4>
-                <p className="text-gray-700">
+                <h4 className="flex items-center gap-2 text-foreground">💡 Pro Tip</h4>
+                <p className="text-foreground dark:text-muted-foreground">
                   Ask specific questions for better answers. For example: "Explain the Krebs cycle step by step"
                 </p>
               </CardContent>
@@ -342,13 +342,13 @@ export default function AIChatbot({ user }: AIChatbotProps) {
         </div>
 
         {/* Main Chat Area */}
-        <div className="flex-1 flex flex-col bg-white">
+        <div className="flex-1 flex flex-col bg-background dark:bg-slate-900">
           {/* Chat Header */}
-          <div className="border-b border-gray-200 p-4">
+          <div className="border-b border-border p-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Bot className="w-6 h-6 text-purple-600" />
-                <h1 className="text-xl font-semibold">AI Doubt Solver</h1>
+                <h1 className="text-xl font-semibold text-foreground">AI Doubt Solver</h1>
               </div>
               <Badge>Chat History: {messages.length - 1}</Badge>
             </div>
@@ -365,7 +365,7 @@ export default function AIChatbot({ user }: AIChatbotProps) {
                       {message.role === 'assistant' && (
                         <Avatar className="w-8 h-8 bg-gradient-to-br from-purple-500 to-pink-500">
                           <AvatarFallback className="bg-transparent">
-                            <Bot className="w-5 h-5 text-white" />
+                            <Bot className="w-5 h-5 text-primary-foreground" />
                           </AvatarFallback>
                         </Avatar>
                       )}
@@ -373,13 +373,13 @@ export default function AIChatbot({ user }: AIChatbotProps) {
                       <div
                         className={`max-w-[80%] rounded-2xl px-4 py-3 ${
                           message.role === 'user'
-                            ? 'bg-blue-600 text-white'
-                            : 'bg-gray-100 text-gray-900'
+                            ? 'bg-blue-600 dark:bg-blue-700 text-primary-foreground'
+                            : 'bg-gray-100 dark:bg-gray-800 text-foreground dark:text-gray-100'
                         }`}
                       >
                         <p className="whitespace-pre-wrap leading-relaxed">{message.content}</p>
                         <span className={`text-xs mt-2 block ${
-                          message.role === 'user' ? 'text-blue-100' : 'text-gray-500'
+                          message.role === 'user' ? 'text-blue-100' : 'text-muted-foreground dark:text-muted-foreground'
                         }`}>
                           {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </span>
@@ -399,7 +399,7 @@ export default function AIChatbot({ user }: AIChatbotProps) {
                     <div className="flex gap-3">
                       <Avatar className="w-8 h-8 bg-gradient-to-br from-purple-500 to-pink-500">
                         <AvatarFallback className="bg-transparent">
-                          <Bot className="w-5 h-5 text-white" />
+                          <Bot className="w-5 h-5 text-primary-foreground" />
                         </AvatarFallback>
                       </Avatar>
                       <div className="bg-gray-100 rounded-2xl px-4 py-3">
@@ -416,7 +416,7 @@ export default function AIChatbot({ user }: AIChatbotProps) {
               </div>
 
           {/* Input Area - Fixed at bottom */}
-          <div className="border-t border-gray-200 p-4 bg-white">
+          <div className="border-t border-border p-4 bg-background dark:bg-card">
             <div className="max-w-4xl mx-auto">
               <div className="flex gap-2">
                 <Input
@@ -435,7 +435,7 @@ export default function AIChatbot({ user }: AIChatbotProps) {
                   <Send className="w-4 h-4" />
                 </Button>
               </div>
-              <p className="text-xs text-gray-500 mt-2">
+              <p className="text-xs text-muted-foreground dark:text-muted-foreground mt-2">
                 Press Enter to send • AI responses are for educational guidance only
               </p>
             </div>

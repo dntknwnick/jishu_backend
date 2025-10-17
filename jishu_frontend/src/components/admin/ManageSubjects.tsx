@@ -164,11 +164,11 @@ export default function ManageSubjects({ courseId, courseName }: ManageSubjectsP
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle className="flex items-center gap-2">
+            <CardTitle className="flex items-center gap-2 text-foreground">
               <BookOpen className="w-5 h-5" />
               Subjects for {courseName}
             </CardTitle>
-            <p className="text-sm text-gray-600 mt-1">
+            <p className="text-sm text-muted-foreground dark:text-muted-foreground mt-1">
               Manage subjects and their pricing for this course
             </p>
           </div>
@@ -181,14 +181,14 @@ export default function ManageSubjects({ courseId, courseName }: ManageSubjectsP
             </DialogTrigger>
             <DialogContent className="sm:max-w-[500px]">
               <DialogHeader>
-                <DialogTitle>Add New Subject</DialogTitle>
-                <DialogDescription>
+                <DialogTitle className="text-foreground">Add New Subject</DialogTitle>
+                <DialogDescription className="text-muted-foreground dark:text-muted-foreground">
                   Create a new subject for {courseName}
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="subject_name">Subject Name *</Label>
+                  <Label htmlFor="subject_name" className="text-foreground">Subject Name *</Label>
                   <Input
                     id="subject_name"
                     placeholder="e.g., Physics, Mathematics"
@@ -273,7 +273,7 @@ export default function ManageSubjects({ courseId, courseName }: ManageSubjectsP
             <span className="ml-2">Loading subjects...</span>
           </div>
         ) : subjects.length === 0 ? (
-          <div className="text-center py-8 text-gray-500">
+          <div className="text-center py-8 text-muted-foreground">
             <BookOpen className="w-12 h-12 mx-auto mb-4 opacity-50" />
             <p>No subjects found for this course</p>
             <p className="text-sm">Add your first subject to get started</p>
@@ -307,7 +307,7 @@ export default function ManageSubjects({ courseId, courseName }: ManageSubjectsP
                     {subject.offer_amount ? (
                       <span className="text-green-600 font-medium">₹{subject.offer_amount}</span>
                     ) : (
-                      <span className="text-gray-400">-</span>
+                      <span className="text-muted-foreground">-</span>
                     )}
                   </TableCell>
                   <TableCell>

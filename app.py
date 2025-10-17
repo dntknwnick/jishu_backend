@@ -16,6 +16,7 @@ from shared.models.user import db, User
 from shared.models.course import ExamCategory, ExamCategorySubject
 from shared.models.purchase import ExamCategoryPurchase, ExamCategoryQuestion, TestAttempt, TestAnswer, MockTestAttempt, TestAttemptSession
 from shared.models.community import BlogPost, BlogLike, BlogComment, AIChatHistory, UserAIStats
+from shared.models.profile import UserStats, UserAcademics, UserPurchaseHistory
 from shared.utils.validators import (
     validate_email_format, validate_mobile_number, validate_name, validate_otp,
     validate_subject_name, validate_course_name, validate_price, validate_token_count,
@@ -510,8 +511,9 @@ def create_app(config_name='development'):
             # Validate and update fields
             if 'name' in data:
                 name = data['name'].strip()
-                if not validate_name(name):
-                    errors['name'] = 'Invalid name format'
+                is_valid_name, name_message = validate_name(name)
+                if not is_valid_name:
+                    errors['name'] = name_message
                 else:
                     user.name = name
 
@@ -529,9 +531,35 @@ def create_app(config_name='development'):
                 else:
                     user.color_theme = color_theme
 
+            if 'avatar' in data:
+                user.avatar = data['avatar']
+
+            if 'address' in data:
+                user.address = data['address']
+
+            if 'gender' in data:
+                if data['gender'] in ['male', 'female', 'other', None]:
+                    user.gender = data['gender']
+                else:
+                    errors['gender'] = "Gender must be 'male', 'female', or 'other'"
+
+            if 'date_of_birth' in data:
+                try:
+                    if data['date_of_birth']:
+                        user.date_of_birth = datetime.strptime(data['date_of_birth'], '%Y-%m-%d').date()
+                except ValueError:
+                    errors['date_of_birth'] = 'Invalid date format. Use YYYY-MM-DD'
+
+            if 'city' in data:
+                user.city = data['city']
+
+            if 'state' in data:
+                user.state = data['state']
+
             if errors:
                 return validation_error_response(errors)
 
+            user.updated_at = datetime.utcnow()
             db.session.commit()
 
             return success_response({
@@ -1462,6 +1490,62 @@ def create_app(config_name='development'):
             return error_response(f"Failed to delete post: {str(e)}", 500)
 
     # Admin Moderation Endpoints
+    @app.route('/api/admin/posts', methods=['GET'])
+    @admin_required
+    def api_admin_get_posts():
+        """Get all posts for admin moderation (Admin only) - includes deleted posts"""
+        try:
+            page = request.args.get('page', 1, type=int)
+            per_page = request.args.get('per_page', 10, type=int)
+            search = request.args.get('search', '').strip()
+            status = request.args.get('status', '').strip()
+            is_deleted = request.args.get('is_deleted', '').strip().lower()
+
+            # Build query - include deleted posts for admin view
+            query = BlogPost.query
+
+            if search:
+                query = query.filter(
+                    db.or_(
+                        BlogPost.title.ilike(f'%{search}%'),
+                        BlogPost.content.ilike(f'%{search}%'),
+                        BlogPost.user.has(User.name.ilike(f'%{search}%'))
+                    )
+                )
+
+            if status:
+                query = query.filter_by(status=status)
+
+            # Filter by deletion status
+            if is_deleted == 'true':
+                query = query.filter_by(is_deleted=True)
+            elif is_deleted == 'false':
+                query = query.filter_by(is_deleted=False)
+            # If not specified, show all (both deleted and non-deleted)
+
+            # Order by newest first
+            query = query.order_by(BlogPost.created_at.desc())
+
+            # Paginate results
+            posts = query.paginate(page=page, per_page=per_page, error_out=False)
+
+            result_data = []
+            for post in posts.items:
+                result_data.append(post.to_dict(include_user=True))
+
+            return success_response({
+                'posts': result_data,
+                'pagination': {
+                    'page': posts.page,
+                    'pages': posts.pages,
+                    'total': posts.total,
+                    'per_page': posts.per_page
+                }
+            }, "Posts retrieved successfully")
+
+        except Exception as e:
+            return error_response(f"Failed to get posts: {str(e)}", 500)
+
     @app.route('/api/admin/posts/<int:post_id>', methods=['PUT'])
     @admin_required
     def api_admin_edit_post(post_id):
@@ -1554,6 +1638,57 @@ def create_app(config_name='development'):
         except Exception as e:
             db.session.rollback()
             return error_response(f"Failed to update comment: {str(e)}", 500)
+
+    @app.route('/api/admin/comments', methods=['GET'])
+    @admin_required
+    def api_admin_get_comments():
+        """Get all comments for admin moderation (Admin only)"""
+        try:
+            page = request.args.get('page', 1, type=int)
+            per_page = request.args.get('per_page', 10, type=int)
+            search = request.args.get('search', '').strip()
+            is_deleted = request.args.get('is_deleted', '').strip().lower()
+
+            # Build query - include deleted comments for admin view
+            query = BlogComment.query
+
+            if search:
+                query = query.filter(
+                    db.or_(
+                        BlogComment.content.ilike(f'%{search}%'),
+                        BlogComment.user.has(User.name.ilike(f'%{search}%'))
+                    )
+                )
+
+            # Filter by deletion status
+            if is_deleted == 'true':
+                query = query.filter_by(is_deleted=True)
+            elif is_deleted == 'false':
+                query = query.filter_by(is_deleted=False)
+            # If not specified, show all (both deleted and non-deleted)
+
+            # Order by newest first
+            query = query.order_by(BlogComment.created_at.desc())
+
+            # Paginate results
+            comments = query.paginate(page=page, per_page=per_page, error_out=False)
+
+            result_data = []
+            for comment in comments.items:
+                result_data.append(comment.to_dict(include_user=True, include_post=True))
+
+            return success_response({
+                'comments': result_data,
+                'pagination': {
+                    'page': comments.page,
+                    'pages': comments.pages,
+                    'total': comments.total,
+                    'per_page': comments.per_page
+                }
+            }, "Comments retrieved successfully")
+
+        except Exception as e:
+            return error_response(f"Failed to get comments: {str(e)}", 500)
 
     @app.route('/api/admin/comments/<int:comment_id>', methods=['DELETE'])
     @admin_required
@@ -2970,8 +3105,8 @@ def create_app(config_name='development'):
             return error_response("This endpoint is only available in development mode", 403)
 
         try:
-            # Get all subjects for demo purposes
-            subjects = ExamCategorySubject.query.all()
+            # Get all non-bundle subjects for demo purposes
+            subjects = ExamCategorySubject.query.filter_by(is_bundle=False).all()
 
             available_tests = []
             for subject in subjects:
@@ -4700,6 +4835,218 @@ def create_app(config_name='development'):
         except Exception as e:
             db.session.rollback()
             return error_response(f"Failed to update profile: {str(e)}", 500)
+
+    # --- COMPREHENSIVE PROFILE ENDPOINTS ---
+
+    @app.route('/api/user/profile', methods=['GET'])
+    @jwt_required()
+    def get_user_profile():
+        """Get comprehensive user profile information"""
+        try:
+            user_id = get_jwt_identity()
+            user = User.query.get(int(user_id))
+            if not user:
+                return error_response("User not found", 404)
+
+            return success_response({
+                'user': user.to_dict()
+            }, "User profile retrieved successfully")
+        except Exception as e:
+            return error_response(f"Failed to get profile: {str(e)}", 500)
+
+    @app.route('/api/user/profile', methods=['PATCH'])
+    @jwt_required()
+    def update_user_profile():
+        """Update user personal information"""
+        try:
+            user_id = get_jwt_identity()
+            user = User.query.get(int(user_id))
+            if not user:
+                return error_response("User not found", 404)
+
+            data = request.get_json()
+            errors = {}
+
+            # Validate and update fields
+            if 'name' in data:
+                name = data['name'].strip()
+                is_valid_name, name_message = validate_name(name)
+                if not is_valid_name:
+                    errors['name'] = name_message
+                else:
+                    user.name = name
+
+            if 'mobile_no' in data:
+                mobile_no = data['mobile_no'].strip()
+                if mobile_no and not validate_mobile_number(mobile_no):
+                    errors['mobile_no'] = 'Invalid mobile number format'
+                else:
+                    user.mobile_no = mobile_no
+
+            if 'avatar' in data:
+                user.avatar = data['avatar']
+
+            if 'address' in data:
+                user.address = data['address']
+
+            if 'gender' in data:
+                if data['gender'] in ['male', 'female', 'other', None]:
+                    user.gender = data['gender']
+                else:
+                    errors['gender'] = "Gender must be 'male', 'female', or 'other'"
+
+            if 'date_of_birth' in data:
+                try:
+                    if data['date_of_birth']:
+                        user.date_of_birth = datetime.strptime(data['date_of_birth'], '%Y-%m-%d').date()
+                except ValueError:
+                    errors['date_of_birth'] = 'Invalid date format. Use YYYY-MM-DD'
+
+            if 'city' in data:
+                user.city = data['city']
+
+            if 'state' in data:
+                user.state = data['state']
+
+            if 'color_theme' in data:
+                if data['color_theme'] in ['light', 'dark']:
+                    user.color_theme = data['color_theme']
+                else:
+                    errors['color_theme'] = "Color theme must be 'light' or 'dark'"
+
+            if errors:
+                return validation_error_response(errors)
+
+            user.updated_at = datetime.utcnow()
+            db.session.commit()
+
+            return success_response({
+                'user': user.to_dict()
+            }, "Profile updated successfully")
+        except Exception as e:
+            db.session.rollback()
+            return error_response(f"Failed to update profile: {str(e)}", 500)
+
+    @app.route('/api/user/stats', methods=['GET'])
+    @jwt_required()
+    def get_user_stats():
+        """Get user test statistics"""
+        try:
+            user_id = get_jwt_identity()
+            user = User.query.get(int(user_id))
+            if not user:
+                return error_response("User not found", 404)
+
+            # Get or create user stats
+            stats = UserStats.query.filter_by(user_id=user_id).first()
+            if not stats:
+                stats = UserStats(user_id=user_id)
+                db.session.add(stats)
+                db.session.commit()
+
+            return success_response({
+                'stats': stats.to_dict()
+            }, "User stats retrieved successfully")
+        except Exception as e:
+            return error_response(f"Failed to get stats: {str(e)}", 500)
+
+    @app.route('/api/user/academics', methods=['GET'])
+    @jwt_required()
+    def get_user_academics():
+        """Get user academic information"""
+        try:
+            user_id = get_jwt_identity()
+            user = User.query.get(int(user_id))
+            if not user:
+                return error_response("User not found", 404)
+
+            # Get or create user academics
+            academics = UserAcademics.query.filter_by(user_id=user_id).first()
+            if not academics:
+                academics = UserAcademics(user_id=user_id)
+                db.session.add(academics)
+                db.session.commit()
+
+            return success_response({
+                'academics': academics.to_dict()
+            }, "User academics retrieved successfully")
+        except Exception as e:
+            return error_response(f"Failed to get academics: {str(e)}", 500)
+
+    @app.route('/api/user/academics', methods=['PATCH'])
+    @jwt_required()
+    def update_user_academics():
+        """Update user academic information"""
+        try:
+            user_id = get_jwt_identity()
+            user = User.query.get(int(user_id))
+            if not user:
+                return error_response("User not found", 404)
+
+            # Get or create user academics
+            academics = UserAcademics.query.filter_by(user_id=user_id).first()
+            if not academics:
+                academics = UserAcademics(user_id=user_id)
+                db.session.add(academics)
+
+            data = request.get_json()
+
+            if 'school_college' in data:
+                academics.school_college = data['school_college']
+
+            if 'grade_year' in data:
+                academics.grade_year = data['grade_year']
+
+            if 'board_university' in data:
+                academics.board_university = data['board_university']
+
+            if 'current_exam_target' in data:
+                academics.current_exam_target = data['current_exam_target']
+
+            academics.updated_at = datetime.utcnow()
+            db.session.commit()
+
+            return success_response({
+                'academics': academics.to_dict()
+            }, "Academic information updated successfully")
+        except Exception as e:
+            db.session.rollback()
+            return error_response(f"Failed to update academics: {str(e)}", 500)
+
+    @app.route('/api/user/purchases', methods=['GET'])
+    @jwt_required()
+    def get_user_purchases():
+        """Get user purchase history"""
+        try:
+            user_id = get_jwt_identity()
+            user = User.query.get(int(user_id))
+            if not user:
+                return error_response("User not found", 404)
+
+            # Get purchases from exam_category_purchase table
+            purchases = ExamCategoryPurchase.query.filter_by(user_id=user_id).all()
+
+            purchase_data = []
+            for purchase in purchases:
+                purchase_dict = purchase.to_dict()
+                # Add course and subject names
+                if purchase.exam_category_id:
+                    course = ExamCategory.query.get(purchase.exam_category_id)
+                    if course:
+                        purchase_dict['course_name'] = course.course_name
+
+                if purchase.subject_id:
+                    subject = ExamCategorySubject.query.get(purchase.subject_id)
+                    if subject:
+                        purchase_dict['subject_name'] = subject.subject_name
+
+                purchase_data.append(purchase_dict)
+
+            return success_response({
+                'purchases': purchase_data
+            }, "Purchase history retrieved successfully")
+        except Exception as e:
+            return error_response(f"Failed to get purchases: {str(e)}", 500)
 
     @app.route('/users', methods=['GET'])
     @jwt_required()

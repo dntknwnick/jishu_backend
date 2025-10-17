@@ -34,10 +34,10 @@ export default function CourseSelection({ user }: CourseSelectionProps) {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-background dark:bg-slate-900">
         <Header user={user} />
         <div className="container mx-auto px-4 py-8 flex items-center justify-center">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 text-foreground">
             <Loader2 className="w-6 h-6 animate-spin" />
             <span>Loading courses...</span>
           </div>
@@ -48,12 +48,12 @@ export default function CourseSelection({ user }: CourseSelectionProps) {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-background dark:bg-slate-900">
         <Header user={user} />
         <div className="container mx-auto px-4 py-8">
           <div className="text-center">
-            <h2 className="text-2xl mb-4">Error Loading Courses</h2>
-            <p className="text-gray-600 mb-4">{error}</p>
+            <h2 className="text-2xl mb-4 text-foreground">Error Loading Courses</h2>
+            <p className="text-muted-foreground dark:text-muted-foreground mb-4">{error}</p>
             <Button onClick={() => dispatch(fetchCourses())}>
               Try Again
             </Button>
@@ -64,16 +64,16 @@ export default function CourseSelection({ user }: CourseSelectionProps) {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-background dark:bg-slate-900">
       <Header user={user} />
-      
+
       <div className="container mx-auto px-4 py-8">
         {/* Welcome Section */}
         <div className="mb-8">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-4xl mb-2">Welcome back, {user?.name}! 👋</h1>
-              <p className="text-xl text-gray-600">Choose your exam course to get started</p>
+              <h1 className="text-4xl mb-2 text-foreground">Welcome back, {user?.name}! 👋</h1>
+              <p className="text-xl text-muted-foreground dark:text-muted-foreground">Choose your exam course to get started</p>
             </div>
             {user?.is_admin && (
               <div className="flex flex-col gap-2">
@@ -103,7 +103,7 @@ export default function CourseSelection({ user }: CourseSelectionProps) {
               </div>
               <div>
                 <p className="text-2xl">{courses.length}</p>
-                <p className="text-sm text-gray-600">Available Courses</p>
+                <p className="text-sm text-muted-foreground">Available Courses</p>
               </div>
             </CardContent>
           </Card>
@@ -114,7 +114,7 @@ export default function CourseSelection({ user }: CourseSelectionProps) {
               </div>
               <div>
                 <p className="text-2xl">{courses.reduce((total, course) => total + (course.subjects?.length || 0), 0)}</p>
-                <p className="text-sm text-gray-600">Total Subjects</p>
+                <p className="text-sm text-muted-foreground">Total Subjects</p>
               </div>
             </CardContent>
           </Card>
@@ -125,7 +125,7 @@ export default function CourseSelection({ user }: CourseSelectionProps) {
               </div>
               <div>
                 <p className="text-2xl">Expert</p>
-                <p className="text-sm text-gray-600">Quality Content</p>
+                <p className="text-sm text-muted-foreground">Quality Content</p>
               </div>
             </CardContent>
           </Card>
@@ -159,7 +159,7 @@ export default function CourseSelection({ user }: CourseSelectionProps) {
                     <div className={`w-16 h-16 ${colorScheme.iconBg} rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}>
                       {icon}
                     </div>
-                    <div className="flex items-center gap-1 text-sm text-gray-600">
+                    <div className="flex items-center gap-1 text-sm text-muted-foreground">
                       <span className="font-medium">{testCount}</span>
                       <span>Tests</span>
                     </div>
@@ -167,7 +167,7 @@ export default function CourseSelection({ user }: CourseSelectionProps) {
 
                   <div>
                     <CardTitle className="text-2xl mb-2">{course.course_name}</CardTitle>
-                    <CardDescription className="text-gray-600 text-sm mb-3">{course.description}</CardDescription>
+                    <CardDescription className="text-muted-foreground text-sm mb-3">{course.description}</CardDescription>
                   </div>
                 </CardHeader>
                 <CardContent className="pt-0">
@@ -175,35 +175,35 @@ export default function CourseSelection({ user }: CourseSelectionProps) {
                   <div className="flex flex-wrap gap-2 mb-4">
                     {course.subjects && course.subjects.length > 0 ? (
                       course.subjects.slice(0, 3).map((subject) => (
-                        <span key={subject.id} className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded-md">
+                        <span key={subject.id} className="px-2 py-1 bg-gray-100 text-foreground text-xs rounded-md">
                           {subject.subject_name}
                         </span>
                       ))
                     ) : (
-                      <span className="px-2 py-1 bg-gray-100 text-gray-500 text-xs rounded-md">
+                      <span className="px-2 py-1 bg-gray-100 text-muted-foreground text-xs rounded-md">
                         No subjects available
                       </span>
                     )}
                     {subjectCount > 3 && (
-                      <span className="px-2 py-1 bg-gray-100 text-gray-500 text-xs rounded-md">
+                      <span className="px-2 py-1 bg-gray-100 text-muted-foreground text-xs rounded-md">
                         +{subjectCount - 3} more
                       </span>
                     )}
                   </div>
 
                   {/* Student Count */}
-                  <div className="flex items-center gap-2 text-sm text-gray-600 mb-4">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
                     <Users className="w-4 h-4" />
                     <span>{studentCount.toLocaleString()} students</span>
                   </div>
 
                   <div className="flex items-center justify-between pt-4 border-t">
-                    <div className="flex items-center gap-2 text-sm text-gray-600">
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <BookOpen className="w-4 h-4" />
                       <span>Comprehensive preparation</span>
                     </div>
                     <Link to={`/subjects/${course.id}`}>
-                      <Button className={`bg-gradient-to-r ${colorScheme.icon} text-white hover:opacity-90 border-0`}>
+                      <Button className={`bg-gradient-to-r ${colorScheme.icon} text-primary-foreground hover:opacity-90 border-0`}>
                         Select Course
                       </Button>
                     </Link>
@@ -221,15 +221,15 @@ export default function CourseSelection({ user }: CourseSelectionProps) {
             <div className="grid md:grid-cols-3 gap-6">
               <div>
                 <h4 className="mb-2">📚 Expert Content</h4>
-                <p className="text-gray-600 text-sm">Questions crafted by subject matter experts and previous toppers</p>
+                <p className="text-muted-foreground text-sm">Questions crafted by subject matter experts and previous toppers</p>
               </div>
               <div>
                 <h4 className="mb-2">📊 Detailed Analytics</h4>
-                <p className="text-gray-600 text-sm">Track your progress with comprehensive performance insights</p>
+                <p className="text-muted-foreground text-sm">Track your progress with comprehensive performance insights</p>
               </div>
               <div>
                 <h4 className="mb-2">🤖 AI Assistant</h4>
-                <p className="text-gray-600 text-sm">Get instant doubt resolution with our intelligent chatbot</p>
+                <p className="text-muted-foreground text-sm">Get instant doubt resolution with our intelligent chatbot</p>
               </div>
             </div>
           </CardContent>

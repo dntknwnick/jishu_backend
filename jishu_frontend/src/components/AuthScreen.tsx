@@ -123,20 +123,20 @@ export default function AuthScreen({ onLogin }: AuthScreenProps) {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 flex items-center justify-center p-4">
       <div className="absolute top-6 left-6">
         <Link to="/">
-          <Button variant="ghost" size="sm">
+          <Button variant="ghost" size="sm" className="text-gray-900 hover:text-blue-600">
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Home
           </Button>
         </Link>
       </div>
-      
-      <Card className="w-full max-w-md shadow-2xl">
+
+      <Card className="w-full max-w-md shadow-2xl bg-white">
         <CardHeader className="text-center space-y-2">
           <div className="w-16 h-16 bg-gradient-to-br from-blue-600 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-2">
             <span className="text-3xl text-white">📚</span>
           </div>
-          <CardTitle className="text-3xl">Welcome to Jishu App</CardTitle>
-          <CardDescription>
+          <CardTitle className="text-3xl text-gray-900">Welcome to Jishu App</CardTitle>
+          <CardDescription className="text-gray-600">
             Sign in to start your exam preparation journey
           </CardDescription>
         </CardHeader>
@@ -150,8 +150,7 @@ export default function AuthScreen({ onLogin }: AuthScreenProps) {
             <TabsContent value="login" className="space-y-4">
               {/* Google Sign In */}
               <Button
-                variant="outline"
-                className="w-full"
+                className="w-full !bg-slate-900 !text-white hover:!bg-slate-800"
                 onClick={handleGoogleSignIn}
               >
                 <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
@@ -177,10 +176,10 @@ export default function AuthScreen({ onLogin }: AuthScreenProps) {
 
               <div className="relative">
                 <div className="absolute inset-0 flex items-center">
-                  <span className="w-full border-t" />
+                  <span className="w-full border-t border-gray-300" />
                 </div>
                 <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-white px-2 text-muted-foreground">Or</span>
+                  <span className="bg-white px-2 text-gray-600">Or</span>
                 </div>
               </div>
 
@@ -193,23 +192,23 @@ export default function AuthScreen({ onLogin }: AuthScreenProps) {
                     </div>
                   )}
                   <div className="space-y-2">
-                    <Label htmlFor="login-email">Email</Label>
+                    <Label htmlFor="login-email" className="text-gray-900">Email</Label>
                     <div className="relative">
-                      <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                      <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-600" />
                       <Input
                         id="login-email"
                         type="email"
                         placeholder="your.email@example.com"
-                        className="pl-10"
+                        className="pl-10 border-gray-300 text-gray-900"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                       />
                     </div>
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-gray-600">
                       Use admin@jishu.com for admin access
                     </p>
                   </div>
-                  <Button type="submit" className="w-full" disabled={isLoading}>
+                  <Button type="submit" className="w-full !bg-slate-900 !text-white hover:!bg-slate-800" disabled={isLoading}>
                     {isLoading ? 'Sending OTP...' : 'Send OTP'}
                   </Button>
                 </form>
@@ -221,14 +220,14 @@ export default function AuthScreen({ onLogin }: AuthScreenProps) {
                     </div>
                   )}
                   <div className="space-y-2">
-                    <Label htmlFor="login-otp">Enter OTP</Label>
+                    <Label htmlFor="login-otp" className="text-gray-900">Enter OTP</Label>
                     <div className="relative">
-                      <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                      <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-600" />
                       <Input
                         id="login-otp"
                         type="text"
                         placeholder="Enter 6-digit OTP"
-                        className="pl-10"
+                        className="pl-10 border-gray-300 text-gray-900"
                         value={otp}
                         onChange={(e) => setOtp(e.target.value)}
                         maxLength={6}
@@ -239,12 +238,13 @@ export default function AuthScreen({ onLogin }: AuthScreenProps) {
                     </p>
                   </div>
                   <div className="flex gap-2">
-                    <Button type="submit" className="flex-1" disabled={isLoading}>
+                    <Button type="submit" className="flex-1 !bg-slate-900 !text-white hover:!bg-slate-800" disabled={isLoading}>
                       {isLoading ? 'Verifying...' : 'Verify OTP'}
                     </Button>
                     <Button
                       type="button"
                       variant="outline"
+                      className="!border-gray-300 !text-gray-900 hover:!bg-gray-50"
                       onClick={handleResendOtp}
                       disabled={isLoading}
                     >
@@ -254,7 +254,7 @@ export default function AuthScreen({ onLogin }: AuthScreenProps) {
                   <Button
                     type="button"
                     variant="ghost"
-                    className="w-full"
+                    className="w-full text-gray-900 hover:text-blue-600"
                     onClick={() => {
                       setIsOtpSent(false);
                       setOtp('');
@@ -272,58 +272,59 @@ export default function AuthScreen({ onLogin }: AuthScreenProps) {
               {!isOtpSent ? (
                 <form onSubmit={handleSendOtp} className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="register-email">Email</Label>
+                    <Label htmlFor="register-email" className="text-gray-900">Email</Label>
                     <div className="relative">
-                      <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                      <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-600" />
                       <Input
                         id="register-email"
                         type="email"
                         placeholder="your.email@example.com"
-                        className="pl-10"
+                        className="pl-10 border-gray-300 text-gray-900"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                       />
                     </div>
                   </div>
-                  <Button type="submit" className="w-full" disabled={isLoading}>
+                  <Button type="submit" className="w-full !bg-slate-900 !text-white hover:!bg-slate-800" disabled={isLoading}>
                     {isLoading ? 'Sending...' : 'Send OTP'}
                   </Button>
                 </form>
               ) : (
                 <form onSubmit={handleRegister} className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="register-name">Full Name</Label>
+                    <Label htmlFor="register-name" className="text-gray-900">Full Name</Label>
                     <div className="relative">
-                      <User className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                      <User className="absolute left-3 top-3 h-4 w-4 text-gray-600" />
                       <Input
                         id="register-name"
                         type="text"
                         placeholder="John Doe"
-                        className="pl-10"
+                        className="pl-10 border-gray-300 text-gray-900"
                         value={name}
                         onChange={(e) => setName(e.target.value)}
                       />
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="register-mobile">Mobile Number</Label>
+                    <Label htmlFor="register-mobile" className="text-gray-900">Mobile Number</Label>
                     <Input
                       id="register-mobile"
                       type="tel"
                       placeholder="9876543210"
+                      className="border-gray-300 text-gray-900"
                       value={mobile}
                       onChange={(e) => setMobile(e.target.value)}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="register-otp">Enter OTP</Label>
+                    <Label htmlFor="register-otp" className="text-gray-900">Enter OTP</Label>
                     <div className="relative">
-                      <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                      <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-600" />
                       <Input
                         id="register-otp"
                         type="text"
                         placeholder="Enter 6-digit OTP"
-                        className="pl-10"
+                        className="pl-10 border-gray-300 text-gray-900"
                         maxLength={6}
                         value={otp}
                         onChange={(e) => setOtp(e.target.value)}
@@ -334,12 +335,13 @@ export default function AuthScreen({ onLogin }: AuthScreenProps) {
                     </p>
                   </div>
                   <div className="flex gap-2">
-                    <Button type="submit" className="flex-1" disabled={isLoading}>
+                    <Button type="submit" className="flex-1 !bg-slate-900 !text-white hover:!bg-slate-800" disabled={isLoading}>
                       {isLoading ? 'Creating Account...' : 'Create Account'}
                     </Button>
                     <Button
                       type="button"
                       variant="outline"
+                      className="!border-gray-300 !text-gray-900 hover:!bg-gray-50"
                       onClick={handleResendOtp}
                       disabled={isLoading}
                     >
@@ -349,7 +351,7 @@ export default function AuthScreen({ onLogin }: AuthScreenProps) {
                   <Button
                     type="button"
                     variant="ghost"
-                    className="w-full"
+                    className="w-full text-gray-900 hover:text-blue-600"
                     onClick={() => {
                       setIsOtpSent(false);
                       setOtp('');
@@ -362,16 +364,15 @@ export default function AuthScreen({ onLogin }: AuthScreenProps) {
 
               <div className="relative">
                 <div className="absolute inset-0 flex items-center">
-                  <span className="w-full border-t" />
+                  <span className="w-full border-t border-gray-300" />
                 </div>
                 <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-white px-2 text-muted-foreground">Or</span>
+                  <span className="bg-white px-2 text-gray-600">Or</span>
                 </div>
               </div>
 
               <Button
-                variant="outline"
-                className="w-full"
+                className="w-full !bg-slate-900 !text-white hover:!bg-slate-800"
                 onClick={handleGoogleSignIn}
               >
                 <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">

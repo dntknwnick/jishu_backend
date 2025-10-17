@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Header from '../Header';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
@@ -24,17 +24,21 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '../ui/alert-dialog';
-import { 
-  Search, 
-  Eye, 
+import {
+  Search,
+  Eye,
   Trash2,
   MessageCircle,
   Heart,
   Flag,
   CheckCircle2,
-  XCircle
+  XCircle,
+  Loader2,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { toast } from 'sonner@2.0.3';
+import { adminApi } from '../../services/api';
 
 interface ManagePostsProps {
   user: any;
@@ -43,124 +47,161 @@ interface ManagePostsProps {
 export default function ManagePosts({ user }: ManagePostsProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTab, setSelectedTab] = useState('posts');
-  
-  const [posts, setPosts] = useState([
-    {
-      id: 1,
-      author: 'Priya Sharma',
-      authorAvatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Priya',
-      title: 'How I Improved My Biology Score by 30%',
-      content: 'Here are 5 proven strategies that helped me...',
-      likes: 234,
-      comments: 45,
-      views: 1240,
-      date: '2025-02-08',
-      status: 'active',
-      reported: 0
-    },
-    {
-      id: 2,
-      author: 'Rahul Kumar',
-      authorAvatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Rahul',
-      title: 'Time Management Tips for JEE Preparation',
-      content: 'Balancing school, coaching, and self-study can be...',
-      likes: 189,
-      comments: 32,
-      views: 890,
-      date: '2025-02-08',
-      status: 'active',
-      reported: 1
-    },
-    {
-      id: 3,
-      author: 'Ananya Patel',
-      authorAvatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Ananya',
-      title: 'My NEET Success Story: From 400 to 650',
-      content: 'One year ago, I was scoring 400 in mocks...',
-      likes: 567,
-      comments: 89,
-      views: 2340,
-      date: '2025-02-07',
-      status: 'active',
-      reported: 0
+  const [currentPage, setCurrentPage] = useState(1);
+  const [perPage] = useState(10);
+
+  // Posts state
+  const [posts, setPosts] = useState<any[]>([]);
+  const [postsPagination, setPostsPagination] = useState({ page: 1, pages: 1, total: 0, per_page: 10 });
+  const [postsLoading, setPostsLoading] = useState(false);
+  const [postsError, setPostsError] = useState<string | null>(null);
+
+  // Comments state
+  const [comments, setComments] = useState<any[]>([]);
+  const [commentsPagination, setCommentsPagination] = useState({ page: 1, pages: 1, total: 0, per_page: 10 });
+  const [commentsLoading, setCommentsLoading] = useState(false);
+  const [commentsError, setCommentsError] = useState<string | null>(null);
+
+  // Deleted posts state
+  const [deletedPosts, setDeletedPosts] = useState<any[]>([]);
+  const [deletedPostsPagination, setDeletedPostsPagination] = useState({ page: 1, pages: 1, total: 0, per_page: 10 });
+  const [deletedPostsLoading, setDeletedPostsLoading] = useState(false);
+  const [deletedPostsError, setDeletedPostsError] = useState<string | null>(null);
+
+  // Deleted comments state
+  const [deletedComments, setDeletedComments] = useState<any[]>([]);
+  const [deletedCommentsPagination, setDeletedCommentsPagination] = useState({ page: 1, pages: 1, total: 0, per_page: 10 });
+  const [deletedCommentsLoading, setDeletedCommentsLoading] = useState(false);
+  const [deletedCommentsError, setDeletedCommentsError] = useState<string | null>(null);
+
+  // Fetch posts
+  useEffect(() => {
+    const fetchPosts = async () => {
+      setPostsLoading(true);
+      setPostsError(null);
+      try {
+        const response = await adminApi.getPosts(currentPage, perPage, searchQuery);
+        setPosts(response.data?.posts || []);
+        setPostsPagination(response.data?.pagination || { page: 1, pages: 1, total: 0, per_page: 10 });
+      } catch (err: any) {
+        setPostsError(err.message || 'Failed to fetch posts');
+        toast.error('Failed to load posts');
+      } finally {
+        setPostsLoading(false);
+      }
+    };
+
+    if (selectedTab === 'posts') {
+      fetchPosts();
     }
-  ]);
+  }, [currentPage, searchQuery, selectedTab, perPage]);
 
-  const [comments, setComments] = useState([
-    {
-      id: 1,
-      postTitle: 'How I Improved My Biology Score',
-      author: 'Aditya Verma',
-      authorAvatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Aditya',
-      content: 'This is really helpful! Thanks for sharing!',
-      likes: 12,
-      date: '2025-02-09',
-      status: 'active',
-      reported: 0
-    },
-    {
-      id: 2,
-      postTitle: 'Time Management Tips',
-      author: 'Neha Kapoor',
-      authorAvatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Neha',
-      content: 'Could you share more details about the second strategy?',
-      likes: 8,
-      date: '2025-02-09',
-      status: 'active',
-      reported: 2
+  // Fetch comments
+  useEffect(() => {
+    const fetchComments = async () => {
+      setCommentsLoading(true);
+      setCommentsError(null);
+      try {
+        const response = await adminApi.getComments(currentPage, perPage, searchQuery);
+        setComments(response.data?.comments || []);
+        setCommentsPagination(response.data?.pagination || { page: 1, pages: 1, total: 0, per_page: 10 });
+      } catch (err: any) {
+        setCommentsError(err.message || 'Failed to fetch comments');
+        toast.error('Failed to load comments');
+      } finally {
+        setCommentsLoading(false);
+      }
+    };
+
+    if (selectedTab === 'comments') {
+      fetchComments();
     }
-  ]);
+  }, [currentPage, searchQuery, selectedTab, perPage]);
 
-  const filteredPosts = posts.filter(post =>
-    post.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    post.author.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Fetch deleted posts
+  useEffect(() => {
+    const fetchDeletedPosts = async () => {
+      setDeletedPostsLoading(true);
+      setDeletedPostsError(null);
+      try {
+        const response = await adminApi.getPosts(currentPage, perPage, searchQuery, '', true);
+        setDeletedPosts(response.data?.posts || []);
+        setDeletedPostsPagination(response.data?.pagination || { page: 1, pages: 1, total: 0, per_page: 10 });
+      } catch (err: any) {
+        setDeletedPostsError(err.message || 'Failed to fetch deleted posts');
+        toast.error('Failed to load deleted posts');
+      } finally {
+        setDeletedPostsLoading(false);
+      }
+    };
 
-  const filteredComments = comments.filter(comment =>
-    comment.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    comment.author.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+    if (selectedTab === 'deleted') {
+      fetchDeletedPosts();
+    }
+  }, [currentPage, searchQuery, selectedTab, perPage]);
 
-  const handleDeletePost = (postId: number) => {
-    setPosts(posts.filter(post => post.id !== postId));
-    toast.success('Post deleted successfully!');
+  // Fetch deleted comments
+  useEffect(() => {
+    const fetchDeletedComments = async () => {
+      setDeletedCommentsLoading(true);
+      setDeletedCommentsError(null);
+      try {
+        const response = await adminApi.getComments(currentPage, perPage, searchQuery, true);
+        setDeletedComments(response.data?.comments || []);
+        setDeletedCommentsPagination(response.data?.pagination || { page: 1, pages: 1, total: 0, per_page: 10 });
+      } catch (err: any) {
+        setDeletedCommentsError(err.message || 'Failed to fetch deleted comments');
+        toast.error('Failed to load deleted comments');
+      } finally {
+        setDeletedCommentsLoading(false);
+      }
+    };
+
+    if (selectedTab === 'deleted-comments') {
+      fetchDeletedComments();
+    }
+  }, [currentPage, searchQuery, selectedTab, perPage]);
+
+  const handleDeletePost = async (postId: number) => {
+    try {
+      await adminApi.deletePost(postId);
+      setPosts(posts.filter(post => post.id !== postId));
+      toast.success('Post deleted successfully!');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to delete post');
+    }
   };
 
-  const handleTogglePostStatus = (postId: number) => {
-    setPosts(posts.map(post =>
-      post.id === postId
-        ? { ...post, status: post.status === 'active' ? 'hidden' : 'active' }
-        : post
-    ));
-    toast.success('Post status updated!');
-  };
-
-  const handleDeleteComment = (commentId: number) => {
-    setComments(comments.filter(comment => comment.id !== commentId));
-    toast.success('Comment deleted successfully!');
-  };
-
-  const handleClearReports = (type: 'post' | 'comment', id: number) => {
-    if (type === 'post') {
-      setPosts(posts.map(post =>
-        post.id === id ? { ...post, reported: 0 } : post
-      ));
-    } else {
-      setComments(comments.map(comment =>
-        comment.id === id ? { ...comment, reported: 0 } : comment
-      ));
+  const handleDeleteComment = async (commentId: number) => {
+    try {
+      await adminApi.deleteComment(commentId);
+      setComments(comments.filter(comment => comment.id !== commentId));
+      toast.success('Comment deleted successfully!');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to delete comment');
     }
-    toast.success('Reports cleared!');
+  };
+
+  const handlePageChange = (newPage: number) => {
+    if (selectedTab === 'posts' && newPage >= 1 && newPage <= postsPagination.pages) {
+      setCurrentPage(newPage);
+    } else if (selectedTab === 'comments' && newPage >= 1 && newPage <= commentsPagination.pages) {
+      setCurrentPage(newPage);
+    } else if (selectedTab === 'deleted' && newPage >= 1 && newPage <= deletedPostsPagination.pages) {
+      setCurrentPage(newPage);
+    } else if (selectedTab === 'deleted-comments' && newPage >= 1 && newPage <= deletedCommentsPagination.pages) {
+      setCurrentPage(newPage);
+    }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-background dark:bg-slate-900">
       <Header user={user} />
-      
+
       <div className="container mx-auto px-4 py-8">
         <div className="mb-8">
-          <h1 className="text-4xl mb-2">Manage Posts & Comments</h1>
-          <p className="text-xl text-gray-600">Moderate community content</p>
+          <h1 className="text-4xl mb-2 text-foreground">Manage Posts & Comments</h1>
+          <p className="text-xl text-muted-foreground dark:text-muted-foreground">Moderate community content</p>
         </div>
 
         {/* Stats */}
@@ -169,8 +210,8 @@ export default function ManagePosts({ user }: ManagePostsProps) {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600 mb-1">Total Posts</p>
-                  <p className="text-3xl">{posts.length}</p>
+                  <p className="text-sm text-muted-foreground dark:text-muted-foreground mb-1">Total Posts</p>
+                  <p className="text-3xl text-foreground">{postsPagination.total}</p>
                 </div>
                 <MessageCircle className="w-10 h-10 text-blue-600" />
               </div>
@@ -180,8 +221,8 @@ export default function ManagePosts({ user }: ManagePostsProps) {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600 mb-1">Total Comments</p>
-                  <p className="text-3xl">{comments.length}</p>
+                  <p className="text-sm text-muted-foreground dark:text-muted-foreground mb-1">Total Comments</p>
+                  <p className="text-3xl text-foreground">{commentsPagination.total}</p>
                 </div>
                 <MessageCircle className="w-10 h-10 text-green-600" />
               </div>
@@ -191,8 +232,8 @@ export default function ManagePosts({ user }: ManagePostsProps) {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600 mb-1">Total Likes</p>
-                  <p className="text-3xl">{posts.reduce((sum, p) => sum + p.likes, 0)}</p>
+                  <p className="text-sm text-muted-foreground dark:text-muted-foreground mb-1">Total Likes</p>
+                  <p className="text-3xl text-foreground">{posts.reduce((sum, p) => sum + (p.likes_count || 0), 0)}</p>
                 </div>
                 <Heart className="w-10 h-10 text-red-600" />
               </div>
@@ -202,10 +243,9 @@ export default function ManagePosts({ user }: ManagePostsProps) {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600 mb-1">Reported Items</p>
-                  <p className="text-3xl text-red-600">
-                    {posts.reduce((sum, p) => sum + p.reported, 0) + 
-                     comments.reduce((sum, c) => sum + c.reported, 0)}
+                  <p className="text-sm text-muted-foreground dark:text-muted-foreground mb-1">Deleted Items</p>
+                  <p className="text-3xl text-red-600 dark:text-red-400">
+                    {deletedPostsPagination.total + deletedCommentsPagination.total}
                   </p>
                 </div>
                 <Flag className="w-10 h-10 text-yellow-600" />
@@ -215,24 +255,42 @@ export default function ManagePosts({ user }: ManagePostsProps) {
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-2 mb-6">
+        <div className="flex gap-2 mb-6 flex-wrap">
           <Button
             variant={selectedTab === 'posts' ? 'default' : 'outline'}
-            onClick={() => setSelectedTab('posts')}
+            onClick={() => {
+              setSelectedTab('posts');
+              setCurrentPage(1);
+            }}
           >
             Posts
           </Button>
           <Button
             variant={selectedTab === 'comments' ? 'default' : 'outline'}
-            onClick={() => setSelectedTab('comments')}
+            onClick={() => {
+              setSelectedTab('comments');
+              setCurrentPage(1);
+            }}
           >
             Comments
           </Button>
           <Button
-            variant={selectedTab === 'reported' ? 'default' : 'outline'}
-            onClick={() => setSelectedTab('reported')}
+            variant={selectedTab === 'deleted' ? 'default' : 'outline'}
+            onClick={() => {
+              setSelectedTab('deleted');
+              setCurrentPage(1);
+            }}
           >
-            Reported ({posts.filter(p => p.reported > 0).length + comments.filter(c => c.reported > 0).length})
+            Deleted Posts
+          </Button>
+          <Button
+            variant={selectedTab === 'deleted-comments' ? 'default' : 'outline'}
+            onClick={() => {
+              setSelectedTab('deleted-comments');
+              setCurrentPage(1);
+            }}
+          >
+            Deleted Comments
           </Button>
         </div>
 
@@ -240,12 +298,15 @@ export default function ManagePosts({ user }: ManagePostsProps) {
         <Card className="mb-6">
           <CardContent className="p-4">
             <div className="relative">
-              <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+              <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search posts or comments..."
                 className="pl-10"
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setCurrentPage(1);
+                }}
               />
             </div>
           </CardContent>
@@ -255,111 +316,130 @@ export default function ManagePosts({ user }: ManagePostsProps) {
         {selectedTab === 'posts' && (
           <Card>
             <CardHeader>
-              <CardTitle>All Posts</CardTitle>
+              <CardTitle>All Posts ({postsPagination.total})</CardTitle>
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Author</TableHead>
-                    <TableHead>Title</TableHead>
-                    <TableHead>Engagement</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Reports</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredPosts.map((post) => (
-                    <TableRow key={post.id}>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Avatar className="w-8 h-8">
-                            <AvatarImage src={post.authorAvatar} />
-                            <AvatarFallback>{post.author.charAt(0)}</AvatarFallback>
-                          </Avatar>
-                          <span className="text-sm">{post.author}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="max-w-xs">
-                        <p className="truncate">{post.title}</p>
-                        <p className="text-xs text-gray-600 truncate">{post.content}</p>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex gap-3 text-sm">
-                          <span className="flex items-center gap-1">
-                            <Heart className="w-4 h-4" /> {post.likes}
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <MessageCircle className="w-4 h-4" /> {post.comments}
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <Eye className="w-4 h-4" /> {post.views}
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell>{post.date}</TableCell>
-                      <TableCell>
-                        <Badge 
-                          variant={post.status === 'active' ? 'default' : 'secondary'}
-                          className="cursor-pointer"
-                          onClick={() => handleTogglePostStatus(post.id)}
-                        >
-                          {post.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        {post.reported > 0 ? (
-                          <Badge variant="destructive" className="flex items-center gap-1 w-fit">
-                            <Flag className="w-3 h-3" />
-                            {post.reported}
-                          </Badge>
-                        ) : (
-                          <span className="text-gray-400">-</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Button variant="ghost" size="sm">
-                            <Eye className="w-4 h-4" />
-                          </Button>
-                          {post.reported > 0 && (
-                            <Button 
-                              variant="ghost" 
-                              size="sm"
-                              onClick={() => handleClearReports('post', post.id)}
+              {postsLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-6 h-6 animate-spin mr-2" />
+                  <span>Loading posts...</span>
+                </div>
+              ) : postsError ? (
+                <div className="text-center py-8 text-red-600">
+                  <p>{postsError}</p>
+                </div>
+              ) : posts.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <p>No posts found</p>
+                </div>
+              ) : (
+                <>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Author</TableHead>
+                        <TableHead>Title</TableHead>
+                        <TableHead>Engagement</TableHead>
+                        <TableHead>Date</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {posts.map((post) => (
+                        <TableRow key={post.id}>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <Avatar className="w-8 h-8">
+                                <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${post.user?.name}`} />
+                                <AvatarFallback>{post.user?.name?.charAt(0) || 'U'}</AvatarFallback>
+                              </Avatar>
+                              <span className="text-sm">{post.user?.name || 'Unknown'}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="max-w-xs">
+                            <p className="truncate font-medium">{post.title}</p>
+                            <p className="text-xs text-muted-foreground truncate">{post.content}</p>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex gap-3 text-sm">
+                              <span className="flex items-center gap-1">
+                                <Heart className="w-4 h-4" /> {post.likes_count || 0}
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <MessageCircle className="w-4 h-4" /> {post.comments_count || 0}
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell>{new Date(post.created_at).toLocaleDateString()}</TableCell>
+                          <TableCell>
+                            <Badge
+                              variant={post.is_deleted ? 'destructive' : post.status === 'published' ? 'default' : 'secondary'}
                             >
-                              <CheckCircle2 className="w-4 h-4 text-green-600" />
-                            </Button>
-                          )}
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
+                              {post.is_deleted ? 'Deleted' : post.status}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
                               <Button variant="ghost" size="sm">
-                                <Trash2 className="w-4 h-4 text-red-600" />
+                                <Eye className="w-4 h-4" />
                               </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>Delete Post?</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  This will permanently delete "{post.title}" and all its comments.
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction onClick={() => handleDeletePost(post.id)}>
-                                  Delete
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button variant="ghost" size="sm">
+                                    <Trash2 className="w-4 h-4 text-red-600" />
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Delete Post?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      This will soft delete "{post.title}". It will be hidden from users but can be recovered.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction onClick={() => handleDeletePost(post.id)}>
+                                      Delete
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+
+                  {/* Pagination */}
+                  <div className="flex items-center justify-between mt-6 pt-4 border-t">
+                    <div className="text-sm text-muted-foreground">
+                      Page {postsPagination.page} of {postsPagination.pages} ({postsPagination.total} total posts)
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handlePageChange(currentPage - 1)}
+                        disabled={currentPage === 1}
+                      >
+                        <ChevronLeft className="w-4 h-4" />
+                        Previous
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handlePageChange(currentPage + 1)}
+                        disabled={currentPage === postsPagination.pages}
+                      >
+                        Next
+                        <ChevronRight className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
         )}
@@ -368,177 +448,310 @@ export default function ManagePosts({ user }: ManagePostsProps) {
         {selectedTab === 'comments' && (
           <Card>
             <CardHeader>
-              <CardTitle>All Comments</CardTitle>
+              <CardTitle>All Comments ({commentsPagination.total})</CardTitle>
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Author</TableHead>
-                    <TableHead>Post</TableHead>
-                    <TableHead>Comment</TableHead>
-                    <TableHead>Likes</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Reports</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredComments.map((comment) => (
-                    <TableRow key={comment.id}>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Avatar className="w-8 h-8">
-                            <AvatarImage src={comment.authorAvatar} />
-                            <AvatarFallback>{comment.author.charAt(0)}</AvatarFallback>
-                          </Avatar>
-                          <span className="text-sm">{comment.author}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="max-w-xs">
-                        <p className="text-sm truncate">{comment.postTitle}</p>
-                      </TableCell>
-                      <TableCell className="max-w-sm">
-                        <p className="text-sm truncate">{comment.content}</p>
-                      </TableCell>
-                      <TableCell>{comment.likes}</TableCell>
-                      <TableCell>{comment.date}</TableCell>
-                      <TableCell>
-                        {comment.reported > 0 ? (
-                          <Badge variant="destructive" className="flex items-center gap-1 w-fit">
-                            <Flag className="w-3 h-3" />
-                            {comment.reported}
-                          </Badge>
-                        ) : (
-                          <span className="text-gray-400">-</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          {comment.reported > 0 && (
-                            <Button 
-                              variant="ghost" 
-                              size="sm"
-                              onClick={() => handleClearReports('comment', comment.id)}
-                            >
-                              <CheckCircle2 className="w-4 h-4 text-green-600" />
-                            </Button>
-                          )}
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <Button variant="ghost" size="sm">
-                                <Trash2 className="w-4 h-4 text-red-600" />
-                              </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>Delete Comment?</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  This will permanently delete this comment.
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction onClick={() => handleDeleteComment(comment.id)}>
-                                  Delete
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+              {commentsLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-6 h-6 animate-spin mr-2" />
+                  <span>Loading comments...</span>
+                </div>
+              ) : commentsError ? (
+                <div className="text-center py-8 text-red-600">
+                  <p>{commentsError}</p>
+                </div>
+              ) : comments.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <p>No comments found</p>
+                </div>
+              ) : (
+                <>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Author</TableHead>
+                        <TableHead>Post</TableHead>
+                        <TableHead>Comment</TableHead>
+                        <TableHead>Likes</TableHead>
+                        <TableHead>Date</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {comments.map((comment) => (
+                        <TableRow key={comment.id}>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <Avatar className="w-8 h-8">
+                                <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${comment.user?.name}`} />
+                                <AvatarFallback>{comment.user?.name?.charAt(0) || 'U'}</AvatarFallback>
+                              </Avatar>
+                              <span className="text-sm">{comment.user?.name || 'Unknown'}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="max-w-xs">
+                            <p className="text-sm truncate">{comment.post?.title || 'Deleted Post'}</p>
+                          </TableCell>
+                          <TableCell className="max-w-sm">
+                            <p className="text-sm truncate">{comment.content}</p>
+                          </TableCell>
+                          <TableCell>{comment.likes_count || 0}</TableCell>
+                          <TableCell>{new Date(comment.created_at).toLocaleDateString()}</TableCell>
+                          <TableCell>
+                            <Badge variant={comment.is_deleted ? 'destructive' : 'default'}>
+                              {comment.is_deleted ? 'Deleted' : 'Active'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button variant="ghost" size="sm">
+                                    <Trash2 className="w-4 h-4 text-red-600" />
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Delete Comment?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      This will soft delete this comment. It will be hidden from users but can be recovered.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction onClick={() => handleDeleteComment(comment.id)}>
+                                      Delete
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+
+                  {/* Pagination */}
+                  <div className="flex items-center justify-between mt-6 pt-4 border-t">
+                    <div className="text-sm text-muted-foreground">
+                      Page {commentsPagination.page} of {commentsPagination.pages} ({commentsPagination.total} total comments)
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handlePageChange(currentPage - 1)}
+                        disabled={currentPage === 1}
+                      >
+                        <ChevronLeft className="w-4 h-4" />
+                        Previous
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handlePageChange(currentPage + 1)}
+                        disabled={currentPage === commentsPagination.pages}
+                      >
+                        Next
+                        <ChevronRight className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
         )}
 
-        {/* Reported Items */}
-        {selectedTab === 'reported' && (
+        {/* Deleted Posts Table */}
+        {selectedTab === 'deleted' && (
           <Card>
             <CardHeader>
-              <CardTitle>Reported Items</CardTitle>
+              <CardTitle>Deleted Posts ({deletedPostsPagination.total})</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-6">
-              {posts.filter(p => p.reported > 0).length === 0 && comments.filter(c => c.reported > 0).length === 0 ? (
-                <div className="text-center py-12">
-                  <CheckCircle2 className="w-16 h-16 text-green-600 mx-auto mb-4" />
-                  <h3 className="text-xl mb-2">No Reported Items</h3>
-                  <p className="text-gray-600">All clear! No posts or comments have been reported.</p>
+            <CardContent>
+              {deletedPostsLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-6 h-6 animate-spin mr-2" />
+                  <span>Loading deleted posts...</span>
+                </div>
+              ) : deletedPostsError ? (
+                <div className="text-center py-8 text-red-600">
+                  <p>{deletedPostsError}</p>
+                </div>
+              ) : deletedPosts.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <p>No deleted posts found</p>
                 </div>
               ) : (
                 <>
-                  {posts.filter(p => p.reported > 0).map(post => (
-                    <Card key={`post-${post.id}`} className="border-red-200">
-                      <CardContent className="p-4">
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-2">
-                              <Badge variant="destructive">Post</Badge>
-                              <Badge variant="destructive">{post.reported} reports</Badge>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Post ID</TableHead>
+                        <TableHead>Title</TableHead>
+                        <TableHead>Author</TableHead>
+                        <TableHead>Likes</TableHead>
+                        <TableHead>Comments</TableHead>
+                        <TableHead>Deleted Date</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {deletedPosts.map((post) => (
+                        <TableRow key={post.id}>
+                          <TableCell>#{post.id}</TableCell>
+                          <TableCell className="max-w-xs">
+                            <p className="truncate">{post.title}</p>
+                          </TableCell>
+                          <TableCell>
+                            <div>
+                              <p className="text-sm">{post.user?.name}</p>
+                              <p className="text-xs text-muted-foreground">{post.user?.email_id}</p>
                             </div>
-                            <h4 className="mb-1">{post.title}</h4>
-                            <p className="text-sm text-gray-600 mb-2">{post.content}</p>
-                            <p className="text-xs text-gray-500">By {post.author} on {post.date}</p>
-                          </div>
-                          <div className="flex gap-2">
-                            <Button 
-                              size="sm" 
-                              variant="outline"
-                              onClick={() => handleClearReports('post', post.id)}
-                            >
-                              <CheckCircle2 className="w-4 h-4 mr-2" />
-                              Clear
-                            </Button>
-                            <Button 
-                              size="sm" 
-                              variant="destructive"
-                              onClick={() => handleDeletePost(post.id)}
-                            >
-                              <Trash2 className="w-4 h-4 mr-2" />
-                              Delete
-                            </Button>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                  {comments.filter(c => c.reported > 0).map(comment => (
-                    <Card key={`comment-${comment.id}`} className="border-red-200">
-                      <CardContent className="p-4">
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-2">
-                              <Badge variant="destructive">Comment</Badge>
-                              <Badge variant="destructive">{comment.reported} reports</Badge>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-1">
+                              <Heart className="w-4 h-4 text-red-500" />
+                              {post.likes_count}
                             </div>
-                            <p className="text-sm mb-2">{comment.content}</p>
-                            <p className="text-xs text-gray-500">On "{comment.postTitle}" by {comment.author} on {comment.date}</p>
-                          </div>
-                          <div className="flex gap-2">
-                            <Button 
-                              size="sm" 
-                              variant="outline"
-                              onClick={() => handleClearReports('comment', comment.id)}
-                            >
-                              <CheckCircle2 className="w-4 h-4 mr-2" />
-                              Clear
-                            </Button>
-                            <Button 
-                              size="sm" 
-                              variant="destructive"
-                              onClick={() => handleDeleteComment(comment.id)}
-                            >
-                              <Trash2 className="w-4 h-4 mr-2" />
-                              Delete
-                            </Button>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-1">
+                              <MessageCircle className="w-4 h-4 text-blue-500" />
+                              {post.comments_count}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <p className="text-sm">{new Date(post.updated_at).toLocaleDateString()}</p>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+
+                  {/* Pagination */}
+                  <div className="flex items-center justify-between mt-6 pt-4 border-t">
+                    <div className="text-sm text-muted-foreground">
+                      Page {deletedPostsPagination.page} of {deletedPostsPagination.pages} ({deletedPostsPagination.total} total deleted posts)
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handlePageChange(currentPage - 1)}
+                        disabled={currentPage === 1}
+                      >
+                        <ChevronLeft className="w-4 h-4" />
+                        Previous
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handlePageChange(currentPage + 1)}
+                        disabled={currentPage === deletedPostsPagination.pages}
+                      >
+                        Next
+                        <ChevronRight className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Deleted Comments Table */}
+        {selectedTab === 'deleted-comments' && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Deleted Comments ({deletedCommentsPagination.total})</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {deletedCommentsLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-6 h-6 animate-spin mr-2" />
+                  <span>Loading deleted comments...</span>
+                </div>
+              ) : deletedCommentsError ? (
+                <div className="text-center py-8 text-red-600">
+                  <p>{deletedCommentsError}</p>
+                </div>
+              ) : deletedComments.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <p>No deleted comments found</p>
+                </div>
+              ) : (
+                <>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Comment ID</TableHead>
+                        <TableHead>Author</TableHead>
+                        <TableHead>Post</TableHead>
+                        <TableHead>Content</TableHead>
+                        <TableHead>Likes</TableHead>
+                        <TableHead>Deleted Date</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {deletedComments.map((comment) => (
+                        <TableRow key={comment.id}>
+                          <TableCell>#{comment.id}</TableCell>
+                          <TableCell>
+                            <div>
+                              <p className="text-sm">{comment.user?.name}</p>
+                              <p className="text-xs text-muted-foreground">{comment.user?.email_id}</p>
+                            </div>
+                          </TableCell>
+                          <TableCell className="max-w-xs">
+                            <p className="truncate text-sm">{comment.post?.title || 'Deleted Post'}</p>
+                          </TableCell>
+                          <TableCell className="max-w-xs">
+                            <p className="truncate text-sm">{comment.content}</p>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-1">
+                              <Heart className="w-4 h-4 text-red-500" />
+                              {comment.likes_count}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <p className="text-sm">{new Date(comment.updated_at).toLocaleDateString()}</p>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+
+                  {/* Pagination */}
+                  <div className="flex items-center justify-between mt-6 pt-4 border-t">
+                    <div className="text-sm text-muted-foreground">
+                      Page {deletedCommentsPagination.page} of {deletedCommentsPagination.pages} ({deletedCommentsPagination.total} total deleted comments)
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handlePageChange(currentPage - 1)}
+                        disabled={currentPage === 1}
+                      >
+                        <ChevronLeft className="w-4 h-4" />
+                        Previous
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handlePageChange(currentPage + 1)}
+                        disabled={currentPage === deletedCommentsPagination.pages}
+                      >
+                        Next
+                        <ChevronRight className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
                 </>
               )}
             </CardContent>

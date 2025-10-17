@@ -531,7 +531,7 @@ export default function MCQTestScreen({ user }: MCQTestScreenProps) {
                 <h3 className="text-xl font-semibold">
                   {isUsingChunkedGeneration ? 'Preparing Your Test' : 'Generating Test Questions'}
                 </h3>
-                <p className="text-gray-600">
+                <p className="text-muted-foreground">
                   {sessionInfo?.isReAttempt
                     ? 'Loading your previous questions...'
                     : isUsingChunkedGeneration
@@ -544,17 +544,17 @@ export default function MCQTestScreen({ user }: MCQTestScreenProps) {
                       value={Math.min(generationProgress.progress_percentage, 100)}
                       className="w-full"
                     />
-                    <p className="text-sm text-gray-500">
+                    <p className="text-sm text-muted-foreground">
                       {generationProgress.questions_generated_count} of {generationProgress.total_questions_needed} questions ready
                     </p>
                   </div>
                 ) : (
-                  <p className="text-sm text-gray-500">This may take a few moments</p>
+                  <p className="text-sm text-muted-foreground dark:text-muted-foreground">This may take a few moments</p>
                 )}
               </div>
               {sessionInfo && (
-                <div className="pt-4 border-t">
-                  <p className="text-sm text-gray-600">
+                <div className="pt-4 border-t border-border">
+                  <p className="text-sm text-muted-foreground dark:text-muted-foreground">
                     Test Card #{sessionInfo.testNumber} - {sessionInfo.subjectName}
                   </p>
                   {sessionInfo.isReAttempt && (
@@ -573,12 +573,12 @@ export default function MCQTestScreen({ user }: MCQTestScreenProps) {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-background dark:bg-slate-900">
         <Header user={user} />
         <div className="container mx-auto px-4 py-8">
           <div className="text-center">
-            <h2 className="text-2xl mb-4">Error Loading Test</h2>
-            <p className="text-gray-600 mb-4">{error}</p>
+            <h2 className="text-2xl mb-4 text-foreground">Error Loading Test</h2>
+            <p className="text-muted-foreground dark:text-muted-foreground mb-4">{error}</p>
             <Button onClick={() => navigate('/courses')}>
               Back to Courses
             </Button>
@@ -590,12 +590,12 @@ export default function MCQTestScreen({ user }: MCQTestScreenProps) {
 
   if (!currentTest || !currentTest.questions || currentTest.questions.length === 0) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-background dark:bg-slate-900">
         <Header user={user} />
         <div className="container mx-auto px-4 py-8">
           <div className="text-center">
-            <h2 className="text-2xl mb-4">No Test Available</h2>
-            <p className="text-gray-600 mb-4">No questions found for this test.</p>
+            <h2 className="text-2xl mb-4 text-foreground">No Test Available</h2>
+            <p className="text-muted-foreground dark:text-muted-foreground mb-4">No questions found for this test.</p>
             <Button onClick={() => navigate('/courses')}>
               Back to Courses
             </Button>
@@ -611,36 +611,36 @@ export default function MCQTestScreen({ user }: MCQTestScreenProps) {
 
   if (showInstructions) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-background dark:bg-slate-900">
         <Header user={user} />
         <div className="container mx-auto px-4 py-8 max-w-4xl">
           <Card>
             <CardContent className="p-8 space-y-6">
               <div className="text-center">
-                <h1 className="text-3xl mb-2">Test Instructions</h1>
+                <h1 className="text-3xl mb-2 text-foreground">Test Instructions</h1>
                 {sessionInfo ? (
                   <div className="space-y-2">
-                    <p className="text-gray-600">Test Card #{sessionInfo.testNumber} - {sessionInfo.subjectName}</p>
+                    <p className="text-muted-foreground dark:text-muted-foreground">Test Card #{sessionInfo.testNumber} - {sessionInfo.subjectName}</p>
                     {sessionInfo.isReAttempt && (
-                      <div className="inline-flex items-center gap-2 px-3 py-1 bg-orange-50 text-orange-700 rounded-full text-sm">
+                      <div className="inline-flex items-center gap-2 px-3 py-1 bg-orange-100 dark:bg-orange-900 text-orange-700 dark:text-orange-200 rounded-full text-sm">
                         <RotateCcw className="w-4 h-4" />
                         Re-attempt {sessionInfo.attemptNumber}/3 - Same questions as first attempt
                       </div>
                     )}
                   </div>
                 ) : (
-                  <p className="text-gray-600">Please read carefully before starting</p>
+                  <p className="text-muted-foreground dark:text-muted-foreground">Please read carefully before starting</p>
                 )}
               </div>
 
               {/* Show loading state while questions are being generated */}
               {isLoadingQuestions ? (
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
                   <div className="flex items-center gap-3">
-                    <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
+                    <Loader2 className="w-5 h-5 animate-spin text-blue-600 dark:text-blue-400" />
                     <div>
-                      <h4 className="font-medium text-blue-900">Preparing Your Test</h4>
-                      <p className="text-sm text-blue-700">
+                      <h4 className="font-medium text-foreground dark:text-blue-200">Preparing Your Test</h4>
+                      <p className="text-sm text-blue-700 dark:text-blue-300">
                         {sessionInfo?.isReAttempt
                           ? 'Loading your previous questions...'
                           : 'Generating fresh questions for your test...'}
@@ -660,7 +660,7 @@ export default function MCQTestScreen({ user }: MCQTestScreenProps) {
                         <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
                       ) : (
                         <div className="w-5 h-5 bg-green-600 rounded-full flex items-center justify-center">
-                          <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                          <svg className="w-3 h-3 text-primary-foreground" fill="currentColor" viewBox="0 0 20 20">
                             <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                           </svg>
                         </div>
@@ -668,7 +668,7 @@ export default function MCQTestScreen({ user }: MCQTestScreenProps) {
                       <div className="flex-1">
                         <h4 className={`font-medium ${
                           isUsingChunkedGeneration && generationProgress?.generation_status !== 'completed'
-                            ? 'text-blue-900'
+                            ? 'text-foreground'
                             : 'text-green-900'
                         }`}>
                           {isUsingChunkedGeneration && generationProgress?.generation_status !== 'completed'
@@ -710,59 +710,59 @@ export default function MCQTestScreen({ user }: MCQTestScreenProps) {
 
               <div className="space-y-4">
                 <div className="flex items-start gap-3">
-                  <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 flex-shrink-0 mt-0.5">
+                  <div className="w-6 h-6 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center text-blue-600 dark:text-blue-200 flex-shrink-0 mt-0.5">
                     1
                   </div>
                   <div>
-                    <h3 className="mb-1">Total Questions</h3>
-                    <p className="text-sm text-gray-600">
+                    <h3 className="mb-1 text-foreground">Total Questions</h3>
+                    <p className="text-sm text-muted-foreground dark:text-muted-foreground">
                       This test contains {currentTest?.questions?.length || 50} multiple choice questions
                     </p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
-                  <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 flex-shrink-0 mt-0.5">
+                  <div className="w-6 h-6 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center text-blue-600 dark:text-blue-200 flex-shrink-0 mt-0.5">
                     2
                   </div>
                   <div>
-                    <h3 className="mb-1">Time Limit</h3>
-                    <p className="text-sm text-gray-600">You have 60 minutes to complete the test</p>
+                    <h3 className="mb-1 text-foreground">Time Limit</h3>
+                    <p className="text-sm text-muted-foreground dark:text-muted-foreground">You have 60 minutes to complete the test</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
-                  <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 flex-shrink-0 mt-0.5">
+                  <div className="w-6 h-6 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center text-blue-600 dark:text-blue-200 flex-shrink-0 mt-0.5">
                     3
                   </div>
                   <div>
-                    <h3 className="mb-1">Marking Scheme</h3>
-                    <p className="text-sm text-gray-600">+4 marks for correct answer, 0 marks for incorrect/unattempted</p>
+                    <h3 className="mb-1 text-foreground">Marking Scheme</h3>
+                    <p className="text-sm text-muted-foreground dark:text-muted-foreground">+4 marks for correct answer, 0 marks for incorrect/unattempted</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
-                  <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 flex-shrink-0 mt-0.5">
+                  <div className="w-6 h-6 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center text-blue-600 dark:text-blue-200 flex-shrink-0 mt-0.5">
                     4
                   </div>
                   <div>
-                    <h3 className="mb-1">Navigation</h3>
-                    <p className="text-sm text-gray-600">You can navigate between questions and flag them for review</p>
+                    <h3 className="mb-1 text-foreground">Navigation</h3>
+                    <p className="text-sm text-muted-foreground dark:text-muted-foreground">You can navigate between questions and flag them for review</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
-                  <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 flex-shrink-0 mt-0.5">
+                  <div className="w-6 h-6 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center text-blue-600 dark:text-blue-200 flex-shrink-0 mt-0.5">
                     5
                   </div>
                   <div>
-                    <h3 className="mb-1">Auto Submit</h3>
-                    <p className="text-sm text-gray-600">Test will be automatically submitted when time runs out</p>
+                    <h3 className="mb-1 text-foreground">Auto Submit</h3>
+                    <p className="text-sm text-muted-foreground dark:text-muted-foreground">Test will be automatically submitted when time runs out</p>
                   </div>
                 </div>
               </div>
 
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 flex gap-3">
-                <AlertCircle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+              <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4 flex gap-3">
+                <AlertCircle className="w-5 h-5 text-yellow-600 dark:text-yellow-500 flex-shrink-0 mt-0.5" />
                 <div className="text-sm">
-                  <p className="text-yellow-800 mb-1">Important Note</p>
-                  <p className="text-yellow-700">Once you start the test, the timer will begin. Make sure you have a stable internet connection and won't be disturbed.</p>
+                  <p className="text-yellow-800 dark:text-yellow-200 mb-1">Important Note</p>
+                  <p className="text-yellow-700 dark:text-yellow-300">Once you start the test, the timer will begin. Make sure you have a stable internet connection and won't be disturbed.</p>
                 </div>
               </div>
 
@@ -793,9 +793,9 @@ export default function MCQTestScreen({ user }: MCQTestScreenProps) {
   const question = currentTest.questions[currentQuestion];
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-background dark:bg-slate-900">
       {/* Top Bar */}
-      <div className="bg-white border-b sticky top-0 z-50">
+      <div className="bg-background dark:bg-card border-b border-border sticky top-0 z-50">
         <div className="container mx-auto px-4 py-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">

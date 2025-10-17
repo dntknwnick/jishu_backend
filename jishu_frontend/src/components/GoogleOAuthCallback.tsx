@@ -104,7 +104,7 @@ export default function GoogleOAuthCallback({ onLogin }: GoogleOAuthCallbackProp
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
         </div>
         <h2 className="text-2xl font-semibold mb-2">Completing Google Sign In</h2>
-        <p className="text-gray-600">Please wait while we verify your account...</p>
+        <p className="text-muted-foreground">Please wait while we verify your account...</p>
       </div>
     </div>
   );

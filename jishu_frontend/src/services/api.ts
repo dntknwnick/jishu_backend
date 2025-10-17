@@ -412,6 +412,39 @@ export const authApi = {
   },
 };
 
+// Profile API
+export const profileApi = {
+  // Get comprehensive user profile
+  getProfile: () =>
+    apiRequest<{ user: User }>('/api/user/profile'),
+
+  // Update user personal information
+  updateProfile: (data: Partial<User>) =>
+    apiRequest<{ user: User }>('/api/user/profile', {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+
+  // Get user statistics
+  getStats: () =>
+    apiRequest<{ stats: any }>('/api/user/stats'),
+
+  // Get user academic information
+  getAcademics: () =>
+    apiRequest<{ academics: any }>('/api/user/academics'),
+
+  // Update user academic information
+  updateAcademics: (data: any) =>
+    apiRequest<{ academics: any }>('/api/user/academics', {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+
+  // Get user purchase history
+  getPurchases: () =>
+    apiRequest<{ purchases: any[] }>('/api/user/purchases'),
+};
+
 // Courses API
 export const coursesApi = {
   getAll: () =>
@@ -505,7 +538,10 @@ export const communityApi = {
   },
 
   likePost: (postId: number) =>
-    apiRequest(`/api/community/posts/${postId}/like`, {
+    apiRequest<{
+      liked: boolean;
+      likes_count: number;
+    }>(`/api/community/posts/${postId}/like`, {
       method: 'POST',
     }),
 
@@ -987,30 +1023,179 @@ export const adminApi = {
     }),
 
   // Users management
-  getUsers: () =>
-    apiRequest<{ users: User[] }>('/api/admin/users'),
+  getUsers: (page = 1, perPage = 10, search = '', status = '', isPremium = '') => {
+    const params = new URLSearchParams();
+    params.append('page', page.toString());
+    params.append('per_page', perPage.toString());
+    if (search) params.append('search', search);
+    if (status) params.append('status', status);
+    if (isPremium) params.append('is_premium', isPremium);
+
+    return apiRequest<{
+      users: Array<{
+        id: number;
+        name: string;
+        email_id: string;
+        mobile_no: string | null;
+        is_premium: boolean;
+        is_admin: boolean;
+        status: string;
+        source: string;
+        google_id: string | null;
+        auth_provider: string;
+        created_at: string;
+        last_login: string | null;
+      }>;
+      pagination: {
+        page: number;
+        pages: number;
+        total: number;
+        per_page: number;
+      };
+    }>(`/api/admin/users?${params.toString()}`);
+  },
 
   // Stats
   getStats: () =>
-    apiRequest<{ stats: any }>('/api/admin/stats'),
+    apiRequest<{
+      stats: {
+        totalUsers: number;
+        activeUsers: number;
+        totalCourses: number;
+        totalSubjects: number;
+        totalPosts: number;
+        publishedPosts: number;
+        totalPurchases: number;
+        totalRevenue: number;
+        totalAIQueries: number;
+        totalTokensUsed: number;
+        averageScore: number;
+        recentUsers: Array<{
+          id: number;
+          name: string;
+          email_id: string;
+          created_at: string;
+        }>;
+        recentPosts: Array<{
+          id: number;
+          title: string;
+          author_id: number;
+          created_at: string;
+        }>;
+        totalTests: number;
+        monthlyRevenue: number;
+      };
+    }>('/api/admin/stats'),
 
   deactivateUser: (id: number) =>
-    apiRequest(`/api/admin/users/${id}/deactivate`, {
+    apiRequest<{ user: User }>(`/api/admin/users/${id}/deactivate`, {
       method: 'PUT',
     }),
 
-  getUserPurchases: (id: number) =>
-    apiRequest(`/api/admin/users/${id}/purchases`),
+  getUserPurchases: (id: number, page = 1, perPage = 10) =>
+    apiRequest<{
+      purchases: Array<{
+        id: number;
+        user_id: number;
+        exam_category_id: number;
+        subject_id: number | null;
+        cost: number;
+        total_marks: number;
+        marks_scored: number;
+        total_mock_tests: number;
+        mock_tests_used: number;
+        purchase_type: string;
+        purchase_date: string;
+      }>;
+      pagination: {
+        page: number;
+        pages: number;
+        total: number;
+        per_page: number;
+      };
+    }>(`/api/admin/users/${id}/purchases?page=${page}&per_page=${perPage}`),
 
   // Posts management
-  updatePost: (id: number, data: { title: string; content: string; tags: string[] }) =>
-    apiRequest(`/api/admin/posts/${id}`, {
+  getPosts: (page = 1, perPage = 10, search = '', status = '', isDeleted?: boolean) => {
+    const params = new URLSearchParams();
+    params.append('page', page.toString());
+    params.append('per_page', perPage.toString());
+    if (search) params.append('search', search);
+    if (status) params.append('status', status);
+    if (isDeleted !== undefined) params.append('is_deleted', isDeleted.toString());
+
+    return apiRequest<{
+      posts: Array<{
+        id: number;
+        title: string;
+        content: string;
+        user_id: number;
+        user: { id: number; name: string; email_id: string };
+        likes_count: number;
+        comments_count: number;
+        is_featured: boolean;
+        is_deleted: boolean;
+        status: string;
+        created_at: string;
+        updated_at: string;
+      }>;
+      pagination: {
+        page: number;
+        pages: number;
+        total: number;
+        per_page: number;
+      };
+    }>(`/api/admin/posts?${params.toString()}`);
+  },
+
+  getComments: (page = 1, perPage = 10, search = '', isDeleted?: boolean) => {
+    const params = new URLSearchParams();
+    params.append('page', page.toString());
+    params.append('per_page', perPage.toString());
+    if (search) params.append('search', search);
+    if (isDeleted !== undefined) params.append('is_deleted', isDeleted.toString());
+
+    return apiRequest<{
+      comments: Array<{
+        id: number;
+        content: string;
+        user_id: number;
+        post_id: number;
+        user: { id: number; name: string; email_id: string };
+        post: { id: number; title: string };
+        likes_count: number;
+        is_deleted: boolean;
+        created_at: string;
+        updated_at: string;
+      }>;
+      pagination: {
+        page: number;
+        pages: number;
+        total: number;
+        per_page: number;
+      };
+    }>(`/api/admin/comments?${params.toString()}`);
+  },
+
+  updatePost: (id: number, data: { title?: string; content?: string; tags?: string[]; status?: string; is_featured?: boolean }) =>
+    apiRequest<{ post: any }>(`/api/admin/posts/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
     }),
 
   deletePost: (id: number) =>
-    apiRequest(`/api/admin/posts/${id}`, {
+    apiRequest<{ message: string }>(`/api/admin/posts/${id}`, {
+      method: 'DELETE',
+    }),
+
+  updateComment: (id: number, data: { content: string }) =>
+    apiRequest<{ comment: any }>(`/api/admin/comments/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
+  deleteComment: (id: number) =>
+    apiRequest<{ message: string }>(`/api/admin/comments/${id}`, {
       method: 'DELETE',
     }),
 };

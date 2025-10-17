@@ -48,6 +48,7 @@ export default function CommunityBlog({ user }: CommunityBlogProps) {
   const [newPost, setNewPost] = useState({ title: '', content: '', tags: '', image: null as File | null });
   const [commentInputs, setCommentInputs] = useState<{ [postId: number]: string }>({});
   const [showCommentInput, setShowCommentInput] = useState<{ [postId: number]: boolean }>({});
+  const [expandedComments, setExpandedComments] = useState<{ [postId: number]: boolean }>({});
 
   useEffect(() => {
     dispatch(fetchPosts());
@@ -124,12 +125,12 @@ export default function CommunityBlog({ user }: CommunityBlogProps) {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-background dark:bg-slate-900">
         <Header user={user} />
         <div className="container mx-auto px-4 py-8">
           <div className="text-center">
-            <h2 className="text-2xl mb-4">Error Loading Posts</h2>
-            <p className="text-gray-600 mb-4">{error}</p>
+            <h2 className="text-2xl mb-4 text-foreground">Error Loading Posts</h2>
+            <p className="text-muted-foreground dark:text-muted-foreground mb-4">{error}</p>
             <Button onClick={() => dispatch(fetchPosts())}>
               Try Again
             </Button>
@@ -140,14 +141,14 @@ export default function CommunityBlog({ user }: CommunityBlogProps) {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-background dark:bg-slate-900">
       <Header user={user} />
-      
+
       <div className="container mx-auto px-4 py-8">
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="text-4xl mb-2">Community Blog</h1>
-            <p className="text-xl text-gray-600">Share your journey, learn from others</p>
+            <h1 className="text-4xl mb-2 text-foreground">Community Blog</h1>
+            <p className="text-xl text-muted-foreground dark:text-muted-foreground">Share your journey, learn from others</p>
           </div>
           <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
             <DialogTrigger asChild>
@@ -158,14 +159,14 @@ export default function CommunityBlog({ user }: CommunityBlogProps) {
             </DialogTrigger>
             <DialogContent className="max-w-2xl">
               <DialogHeader>
-                <DialogTitle>Create a New Post</DialogTitle>
-                <DialogDescription>
+                <DialogTitle className="text-foreground">Create a New Post</DialogTitle>
+                <DialogDescription className="text-muted-foreground dark:text-muted-foreground">
                   Share your study tips, experiences, or ask questions to the community
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="title">Title</Label>
+                  <Label htmlFor="title" className="text-foreground">Title</Label>
                   <Input
                     id="title"
                     placeholder="Enter a catchy title"
@@ -174,7 +175,7 @@ export default function CommunityBlog({ user }: CommunityBlogProps) {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="content">Content</Label>
+                  <Label htmlFor="content" className="text-foreground">Content</Label>
                   <Textarea
                     id="content"
                     placeholder="Share your thoughts..."
@@ -184,7 +185,7 @@ export default function CommunityBlog({ user }: CommunityBlogProps) {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="tags">Tags (comma separated)</Label>
+                  <Label htmlFor="tags" className="text-foreground">Tags (comma separated)</Label>
                   <Input
                     id="tags"
                     placeholder="e.g., NEET, Study Tips, Motivation"
@@ -193,7 +194,7 @@ export default function CommunityBlog({ user }: CommunityBlogProps) {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="image">Image (optional)</Label>
+                  <Label htmlFor="image" className="text-foreground">Image (optional)</Label>
                   <div className="flex items-center gap-2">
                     <Input
                       id="image"
@@ -214,7 +215,7 @@ export default function CommunityBlog({ user }: CommunityBlogProps) {
                     )}
                   </div>
                   {newPost.image && (
-                    <p className="text-sm text-gray-600">
+                    <p className="text-sm text-muted-foreground dark:text-muted-foreground">
                       Selected: {newPost.image.name}
                     </p>
                   )}
@@ -240,15 +241,15 @@ export default function CommunityBlog({ user }: CommunityBlogProps) {
                   <div className="flex items-center gap-3 mb-4">
                     <Avatar className="w-10 h-10">
                       <AvatarImage src={post.author?.avatar} alt={post.author?.name} />
-                      <AvatarFallback className="bg-blue-100 text-blue-600">
+                      <AvatarFallback className="bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-200">
                         {post.author?.name?.charAt(0) || 'U'}
                       </AvatarFallback>
                     </Avatar>
                     <div className="flex-1">
-                      <h4 className="font-medium">{post.author?.name || 'Anonymous'}</h4>
-                      <p className="text-sm text-gray-600">{post.author?.role || 'Student'}</p>
+                      <h4 className="font-medium text-foreground">{post.author?.name || 'Anonymous'}</h4>
+                      <p className="text-sm text-muted-foreground dark:text-muted-foreground">{post.author?.role || 'Student'}</p>
                     </div>
-                    <span className="text-sm text-gray-500 flex items-center gap-1">
+                    <span className="text-sm text-muted-foreground dark:text-muted-foreground flex items-center gap-1">
                       <Clock className="w-4 h-4" />
                       {post.timeAgo}
                     </span>
@@ -256,10 +257,10 @@ export default function CommunityBlog({ user }: CommunityBlogProps) {
 
                   {/* Post Content */}
                   <div className="space-y-3">
-                    <h2 className="text-xl font-semibold text-gray-900">
+                    <h2 className="text-xl font-semibold text-foreground">
                       {post.title}
                     </h2>
-                    <p className="text-gray-700 leading-relaxed">{post.content}</p>
+                    <p className="text-foreground dark:text-muted-foreground leading-relaxed">{post.content}</p>
 
                     {/* Post Image */}
                     {(post.image_url || post.image) && (
@@ -290,12 +291,12 @@ export default function CommunityBlog({ user }: CommunityBlogProps) {
                 </CardHeader>
                 <CardContent className="pt-0">
                   {/* Action Buttons */}
-                  <div className="flex items-center justify-between py-3 border-t border-gray-100">
+                  <div className="flex items-center justify-between py-3 border-t border-border">
                     <div className="flex items-center gap-4">
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="gap-2 hover:bg-red-50 hover:text-red-600"
+                        className="gap-2 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 dark:hover:text-red-400"
                         onClick={() => toggleLike(post.id)}
                       >
                         <Heart className={`w-5 h-5 ${post.is_liked ? 'fill-red-500 text-red-500' : ''}`} />
@@ -304,46 +305,70 @@ export default function CommunityBlog({ user }: CommunityBlogProps) {
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="gap-2 hover:bg-blue-50 hover:text-blue-600"
+                        className="gap-2 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:text-blue-600 dark:hover:text-blue-400"
                         onClick={() => toggleCommentInput(post.id)}
                       >
                         <MessageCircle className="w-5 h-5" />
                         <span>{post.comments_count || 0}</span>
                       </Button>
-                      <Button variant="ghost" size="sm" className="gap-2 hover:bg-gray-50">
+                      <Button variant="ghost" size="sm" className="gap-2 hover:bg-gray-50 dark:hover:bg-gray-800">
                         <Share2 className="w-5 h-5" />
                       </Button>
                     </div>
-                    <div className="flex items-center gap-2 text-sm text-gray-500">
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground dark:text-muted-foreground">
                       <Eye className="w-4 h-4" />
                       <span>{post.views || 0}</span>
                     </div>
                   </div>
 
-                  {/* Recent Comments */}
-                  {post.recent_comments && post.recent_comments.length > 0 && (
-                    <div className="space-y-3 py-3 border-t border-gray-100">
-                      <h4 className="text-sm font-medium text-gray-700">Recent Comments</h4>
-                      {post.recent_comments.map((comment) => (
-                        <div key={comment.id} className="flex gap-3">
-                          <Avatar className="w-8 h-8">
-                            <AvatarFallback className="bg-gray-100 text-gray-600 text-xs">
-                              {comment.user?.name?.charAt(0) || 'U'}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div className="flex-1 min-w-0">
-                            <div className="bg-gray-50 rounded-lg px-3 py-2">
-                              <p className="text-sm font-medium text-gray-900">
-                                {comment.user?.name || 'Anonymous'}
-                              </p>
-                              <p className="text-sm text-gray-700 mt-1">{comment.content}</p>
+                  {/* Comments Section */}
+                  {post.comments_count > 0 && (
+                    <div className="space-y-3 py-3 border-t border-border">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-sm font-medium text-foreground dark:text-muted-foreground">
+                          Comments ({post.comments_count})
+                        </h4>
+                        {post.comments_count > 3 && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-xs text-blue-600 hover:text-blue-700"
+                            onClick={() => setExpandedComments(prev => ({
+                              ...prev,
+                              [post.id]: !prev[post.id]
+                            }))}
+                          >
+                            {expandedComments[post.id] ? 'Show Less' : `View All (${post.comments_count})`}
+                          </Button>
+                        )}
+                      </div>
+
+                      {/* Display comments */}
+                      {post.recent_comments && post.recent_comments.length > 0 && (
+                        <div className="space-y-3">
+                          {post.recent_comments.map((comment) => (
+                            <div key={comment.id} className="flex gap-3">
+                              <Avatar className="w-8 h-8 flex-shrink-0">
+                                <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${comment.user?.name}`} />
+                                <AvatarFallback className="bg-gray-100 text-muted-foreground text-xs">
+                                  {comment.user?.name?.charAt(0) || 'U'}
+                                </AvatarFallback>
+                              </Avatar>
+                              <div className="flex-1 min-w-0">
+                                <div className="bg-gray-50 rounded-lg px-3 py-2">
+                                  <p className="text-sm font-medium text-foreground">
+                                    {comment.user?.name || 'Anonymous'}
+                                  </p>
+                                  <p className="text-sm text-foreground mt-1 break-words">{comment.content}</p>
+                                </div>
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  {new Date(comment.created_at).toLocaleDateString()}
+                                </p>
+                              </div>
                             </div>
-                            <p className="text-xs text-gray-500 mt-1">
-                              {new Date(comment.created_at).toLocaleDateString()}
-                            </p>
-                          </div>
+                          ))}
                         </div>
-                      ))}
+                      )}
                     </div>
                   )}
 
@@ -432,7 +457,7 @@ export default function CommunityBlog({ user }: CommunityBlogProps) {
                     </Avatar>
                     <div className="flex-1">
                       <h4 className="text-sm">{author.name}</h4>
-                      <p className="text-xs text-gray-600">{author.posts} posts</p>
+                      <p className="text-xs text-muted-foreground">{author.posts} posts</p>
                     </div>
                   </div>
                 ))}
@@ -444,7 +469,7 @@ export default function CommunityBlog({ user }: CommunityBlogProps) {
               <CardHeader>
                 <h3 className="text-lg">Community Guidelines</h3>
               </CardHeader>
-              <CardContent className="space-y-2 text-sm text-gray-700">
+              <CardContent className="space-y-2 text-sm text-foreground">
                 <p>• Be respectful and supportive</p>
                 <p>• Share authentic experiences</p>
                 <p>• No spam or promotional content</p>

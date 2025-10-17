@@ -5,18 +5,41 @@ interface AdminState {
   // Course management
   courses: Course[];
   subjects: Subject[];
-  
+
   // User management
   users: User[];
-  
+
   // Analytics data
   stats: {
     totalUsers: number;
-    activeTests: number;
+    activeUsers: number;
+    totalCourses: number;
+    totalSubjects: number;
+    totalPosts: number;
+    publishedPosts: number;
+    totalPurchases: number;
+    totalRevenue: number;
+    totalAIQueries: number;
+    totalTokensUsed: number;
+    averageScore: number;
+    recentUsers: Array<{
+      id: number;
+      name: string;
+      email_id: string;
+      created_at: string;
+    }>;
+    recentPosts: Array<{
+      id: number;
+      title: string;
+      author_id: number;
+      created_at: string;
+    }>;
+    totalTests: number;
     monthlyRevenue: number;
-    avgScore: number;
+    activeTests?: number;
+    avgScore?: number;
   };
-  
+
   // System status
   systemStatus: {
     apiStatus: string;
@@ -24,7 +47,7 @@ interface AdminState {
     serverLoad: number;
     activeSessions: number;
   };
-  
+
   isLoading: boolean;
   error: string | null;
 }
@@ -35,8 +58,21 @@ const initialState: AdminState = {
   users: [],
   stats: {
     totalUsers: 0,
-    activeTests: 0,
+    activeUsers: 0,
+    totalCourses: 0,
+    totalSubjects: 0,
+    totalPosts: 0,
+    publishedPosts: 0,
+    totalPurchases: 0,
+    totalRevenue: 0,
+    totalAIQueries: 0,
+    totalTokensUsed: 0,
+    averageScore: 0,
+    recentUsers: [],
+    recentPosts: [],
+    totalTests: 0,
     monthlyRevenue: 0,
+    activeTests: 0,
     avgScore: 0,
   },
   systemStatus: {

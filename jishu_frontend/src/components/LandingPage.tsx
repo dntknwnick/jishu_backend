@@ -49,16 +49,16 @@ export default function LandingPage() {
             </span>
           </div>
           <nav className="hidden md:flex items-center gap-6">
-            <a href="#features" className="text-gray-700 hover:text-blue-600 transition">Features</a>
-            <a href="#exams" className="text-gray-700 hover:text-blue-600 transition">Exams</a>
-            <a href="#about" className="text-gray-700 hover:text-blue-600 transition">About</a>
+            <a href="#features" className="text-gray-900 hover:text-blue-600 transition">Features</a>
+            <a href="#exams" className="text-gray-900 hover:text-blue-600 transition">Exams</a>
+            <a href="#about" className="text-gray-900 hover:text-blue-600 transition">About</a>
           </nav>
           <div className="flex items-center gap-3">
             <Link to="/auth">
-              <Button variant="ghost">Login</Button>
+              <Button variant="ghost" className="text-gray-900 hover:text-blue-600">Login</Button>
             </Link>
             <Link to="/auth">
-              <Button>Get Started</Button>
+              <Button className="bg-slate-900 text-white hover:bg-slate-800">Get Started</Button>
             </Link>
           </div>
         </div>
@@ -72,7 +72,7 @@ export default function LandingPage() {
               <Zap className="w-4 h-4" />
               <span className="text-sm">Trusted by 50,000+ Students</span>
             </div>
-            <h1 className="text-5xl md:text-6xl">
+            <h1 className="text-5xl md:text-6xl text-gray-900">
               Ace Your <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">Competitive Exams</span> with Confidence
             </h1>
             <p className="text-xl text-gray-600">
@@ -80,11 +80,11 @@ export default function LandingPage() {
             </p>
             <div className="flex flex-col sm:flex-row gap-4">
               <Link to="/auth">
-                <Button size="lg" className="w-full sm:w-auto">
+                <Button size="lg" className="w-full sm:w-auto bg-slate-900 text-white hover:bg-slate-800">
                   Start Free Trial
                 </Button>
               </Link>
-              <Button size="lg" variant="outline" className="w-full sm:w-auto">
+              <Button size="lg" variant="outline" className="w-full sm:w-auto border-gray-300 text-gray-900 hover:bg-gray-50">
                 Watch Demo
               </Button>
             </div>
@@ -114,17 +114,17 @@ export default function LandingPage() {
       <section id="features" className="bg-white py-20">
         <div className="container mx-auto px-4">
           <div className="text-center mb-16">
-            <h2 className="text-4xl mb-4">Everything You Need to Succeed</h2>
+            <h2 className="text-4xl mb-4 text-gray-900">Everything You Need to Succeed</h2>
             <p className="text-xl text-gray-600">Comprehensive tools designed for serious exam preparation</p>
           </div>
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
             {features.map((feature, index) => (
-              <Card key={index} className="border-none shadow-lg hover:shadow-xl transition-shadow">
+              <Card key={index} className="border-none shadow-lg hover:shadow-xl transition-shadow bg-white">
                 <CardContent className="p-6 space-y-4">
                   <div className="w-16 h-16 bg-gradient-to-br from-blue-100 to-purple-100 rounded-2xl flex items-center justify-center text-blue-600">
                     {feature.icon}
                   </div>
-                  <h3 className="text-xl">{feature.title}</h3>
+                  <h3 className="text-xl text-gray-900">{feature.title}</h3>
                   <p className="text-gray-600">{feature.description}</p>
                 </CardContent>
               </Card>
@@ -134,10 +134,10 @@ export default function LandingPage() {
       </section>
 
       {/* Exams Section */}
-      <section id="exams" className="py-20 bg-gradient-to-b from-gray-50 to-white">
+      <section id="exams" className="py-20 bg-gray-50">
         <div className="container mx-auto px-4">
           <div className="text-center mb-16">
-            <h2 className="text-4xl mb-4">Prepare for All Major Exams</h2>
+            <h2 className="text-4xl mb-4 text-gray-900">Prepare for All Major Exams</h2>
             <p className="text-xl text-gray-600">Comprehensive test series for every competitive exam</p>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6 max-w-4xl mx-auto">
@@ -154,7 +154,7 @@ export default function LandingPage() {
       </section>
 
       {/* Stats Section */}
-      <section className="py-20 bg-gradient-to-r from-blue-600 to-purple-600 text-white">
+      <section className="py-20 bg-gradient-to-r from-blue-600 to-purple-600 text-primary-foreground">
         <div className="container mx-auto px-4">
           <div className="grid md:grid-cols-4 gap-8 text-center">
             <div>
@@ -178,16 +178,16 @@ export default function LandingPage() {
       </section>
 
       {/* CTA Section */}
-      <section className="py-20">
+      <section className="py-20 bg-white">
         <div className="container mx-auto px-4">
           <Card className="bg-gradient-to-br from-blue-50 to-purple-50 border-none shadow-xl">
             <CardContent className="p-12 text-center space-y-6">
-              <h2 className="text-4xl">Ready to Start Your Journey?</h2>
+              <h2 className="text-4xl text-gray-900">Ready to Start Your Journey?</h2>
               <p className="text-xl text-gray-600 max-w-2xl mx-auto">
                 Join thousands of students who are already preparing smarter, not harder
               </p>
               <Link to="/auth">
-                <Button size="lg" className="mt-4">
+                <Button size="lg" className="mt-4 bg-slate-900 text-white hover:bg-slate-800">
                   Create Free Account
                 </Button>
               </Link>

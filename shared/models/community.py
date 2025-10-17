@@ -102,7 +102,7 @@ class BlogComment(db.Model):
     post = db.relationship('BlogPost', backref='comments')
     parent_comment = db.relationship('BlogComment', remote_side=[id], backref='replies')
     
-    def to_dict(self, include_user=True, include_replies=False):
+    def to_dict(self, include_user=True, include_replies=False, include_post=False):
         """Convert blog comment object to dictionary"""
         result = {
             'id': self.id,
@@ -115,20 +115,26 @@ class BlogComment(db.Model):
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
-        
+
         if include_user and self.user:
             result['user'] = {
                 'id': self.user.id,
                 'name': self.user.name,
                 'email_id': self.user.email_id
             }
-        
+
+        if include_post and self.post:
+            result['post'] = {
+                'id': self.post.id,
+                'title': self.post.title
+            }
+
         if include_replies:
             # Filter out deleted replies
             active_replies = [reply for reply in self.replies if not reply.is_deleted]
             result['replies'] = [reply.to_dict(include_user=include_user, include_replies=False)
                                for reply in active_replies]
-            
+
         return result
     
     def __repr__(self):

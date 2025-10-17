@@ -217,17 +217,17 @@ export default function TestResultDashboard({ user }: TestResultDashboardProps) 
   const worstScore = analyticsData?.worst_score || 0;
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-background dark:bg-slate-900">
       <Header user={user} />
 
       <div className="container mx-auto px-4 py-8">
         {purchaseSuccess && (
-          <Card className="mb-8 bg-gradient-to-r from-green-50 to-emerald-50 border-green-200">
+          <Card className="mb-8 bg-gradient-to-r from-green-50 dark:from-green-900/20 to-emerald-50 dark:to-emerald-900/20 border-green-200 dark:border-green-800">
             <CardContent className="p-6 flex items-center gap-4">
               <CheckCircle2 className="w-12 h-12 text-green-600" />
               <div>
-                <h3 className="text-xl text-green-900 mb-1">Purchase Successful! 🎉</h3>
-                <p className="text-green-700">
+                <h3 className="text-xl text-green-900 dark:text-green-200 mb-1">Purchase Successful! 🎉</h3>
+                <p className="text-green-700 dark:text-green-300">
                   Your mock tests are now available. Start practicing below!
                 </p>
               </div>
@@ -236,14 +236,14 @@ export default function TestResultDashboard({ user }: TestResultDashboardProps) 
         )}
 
         {latestResult && (
-          <Card className="mb-8 bg-gradient-to-br from-blue-50 to-purple-50 border-blue-200">
+          <Card className="mb-8 bg-gradient-to-br from-blue-50 dark:from-blue-900/20 to-purple-50 dark:to-purple-900/20 border-blue-200 dark:border-blue-800">
             <CardContent className="p-8 text-center space-y-4">
               <Trophy className="w-16 h-16 text-yellow-500 mx-auto" />
-              <h2 className="text-3xl">Test Completed!</h2>
-              <div className="text-6xl">
+              <h2 className="text-3xl text-foreground">Test Completed!</h2>
+              <div className="text-6xl text-foreground">
                 {Math.round((latestResult.score / latestResult.totalQuestions) * 100)}%
               </div>
-              <p className="text-xl text-gray-600">
+              <p className="text-xl text-muted-foreground dark:text-muted-foreground">
                 You scored {latestResult.score} out of {latestResult.totalQuestions} questions
               </p>
               <Button size="lg">View Detailed Analysis</Button>
@@ -263,7 +263,7 @@ export default function TestResultDashboard({ user }: TestResultDashboardProps) 
             {isLoadingAnalytics ? (
               <div className="text-center py-12">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-                <p>Loading analytics...</p>
+                <p className="text-foreground">Loading analytics...</p>
               </div>
             ) : (
               <>
@@ -272,13 +272,13 @@ export default function TestResultDashboard({ user }: TestResultDashboardProps) 
                   <Card>
                     <CardContent className="p-6">
                       <div className="flex items-center gap-4">
-                        <div className="p-3 bg-blue-100 rounded-lg">
+                        <div className="p-3 bg-blue-100 dark:bg-blue-900 rounded-lg">
                           <TrendingUp className="w-6 h-6 text-blue-600" />
                         </div>
                         <div>
-                          <p className="text-sm text-gray-600">Average Score</p>
-                          <p className="text-2xl font-bold">{Math.round(averageScore)}%</p>
-                          <p className="text-xs text-gray-500">
+                          <p className="text-sm text-muted-foreground dark:text-muted-foreground">Average Score</p>
+                          <p className="text-2xl font-bold text-foreground">{Math.round(averageScore)}%</p>
+                          <p className="text-xs text-muted-foreground dark:text-muted-foreground">
                             {totalTests > 0 ? `${totalTests} tests taken` : 'No tests taken'}
                           </p>
                         </div>
@@ -289,13 +289,13 @@ export default function TestResultDashboard({ user }: TestResultDashboardProps) 
                   <Card>
                     <CardContent className="p-6">
                       <div className="flex items-center gap-4">
-                        <div className="p-3 bg-green-100 rounded-lg">
+                        <div className="p-3 bg-green-100 dark:bg-green-900 rounded-lg">
                           <Target className="w-6 h-6 text-green-600" />
                         </div>
                         <div>
-                          <p className="text-sm text-gray-600">Tests Taken</p>
-                          <p className="text-2xl font-bold">{totalTests}</p>
-                          <p className="text-xs text-gray-500">
+                          <p className="text-sm text-muted-foreground dark:text-muted-foreground">Tests Taken</p>
+                          <p className="text-2xl font-bold text-foreground">{totalTests}</p>
+                          <p className="text-xs text-muted-foreground dark:text-muted-foreground">
                             {totalTests > 0 ? `+${Math.round(totalTests / 4)} this week` : 'Start your first test'}
                           </p>
                         </div>
@@ -310,11 +310,11 @@ export default function TestResultDashboard({ user }: TestResultDashboardProps) 
                           <Clock className="w-6 h-6 text-purple-600" />
                         </div>
                         <div>
-                          <p className="text-sm text-gray-600">Study Time</p>
+                          <p className="text-sm text-muted-foreground">Study Time</p>
                           <p className="text-2xl font-bold">
                             {totalTimeSpent > 0 ? `${Math.round(totalTimeSpent / 60)}m` : '0m'}
                           </p>
-                          <p className="text-xs text-gray-500">
+                          <p className="text-xs text-muted-foreground">
                             {totalTimeSpent > 0 ? 'Total time spent' : 'Time spent studying'}
                           </p>
                         </div>
@@ -329,11 +329,11 @@ export default function TestResultDashboard({ user }: TestResultDashboardProps) 
                           <Trophy className="w-6 h-6 text-yellow-600" />
                         </div>
                         <div>
-                          <p className="text-sm text-gray-600">Rank</p>
+                          <p className="text-sm text-muted-foreground">Rank</p>
                           <p className="text-2xl font-bold">
                             #{totalTests > 0 ? Math.max(1, 1000 - (totalTests * 10)) : 'N/A'}
                           </p>
-                          <p className="text-xs text-gray-500">
+                          <p className="text-xs text-muted-foreground">
                             {totalTests > 0 ? `Out of ${1000 + totalTests} students` : 'Take tests to get ranked'}
                           </p>
                         </div>
@@ -369,8 +369,8 @@ export default function TestResultDashboard({ user }: TestResultDashboardProps) 
                       </ResponsiveContainer>
                     ) : (
                       <div className="text-center py-12">
-                        <TrendingUp className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                        <p className="text-gray-500">Complete tests to see your performance trend</p>
+                        <TrendingUp className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+                        <p className="text-muted-foreground">Complete tests to see your performance trend</p>
                       </div>
                     )}
                   </CardContent>
@@ -397,8 +397,8 @@ export default function TestResultDashboard({ user }: TestResultDashboardProps) 
                       </ResponsiveContainer>
                     ) : (
                       <div className="text-center py-12">
-                        <BookOpen className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                        <p className="text-gray-500">Complete tests to see subject-wise performance</p>
+                        <BookOpen className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+                        <p className="text-muted-foreground">Complete tests to see subject-wise performance</p>
                       </div>
                     )}
                   </CardContent>
@@ -421,21 +421,21 @@ export default function TestResultDashboard({ user }: TestResultDashboardProps) 
                               }`}></div>
                               <div>
                                 <p className="font-medium">{test.subject_name}</p>
-                                <p className="text-sm text-gray-600">Test #{test.test_number}</p>
+                                <p className="text-sm text-muted-foreground">Test #{test.test_number}</p>
                               </div>
                             </div>
                             <div className="text-right">
                               <p className="font-bold text-lg">{Math.round(test.latest_percentage)}%</p>
-                              <p className="text-sm text-gray-500">{test.latest_score}/50</p>
+                              <p className="text-sm text-muted-foreground">{test.latest_score}/50</p>
                             </div>
                           </div>
                         ))}
                       </div>
                     ) : (
                       <div className="text-center py-8">
-                        <Target className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                        <p className="text-gray-500">No test results yet</p>
-                        <p className="text-sm text-gray-400">Start taking tests to see your results here</p>
+                        <Target className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+                        <p className="text-muted-foreground">No test results yet</p>
+                        <p className="text-sm text-muted-foreground">Start taking tests to see your results here</p>
                       </div>
                     )}
                   </CardContent>
@@ -494,8 +494,8 @@ export default function TestResultDashboard({ user }: TestResultDashboardProps) 
                         </div>
                       ) : (
                         <div className="text-center py-12">
-                          <Target className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                          <p className="text-gray-500">Take tests to see accuracy analysis</p>
+                          <Target className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+                          <p className="text-muted-foreground">Take tests to see accuracy analysis</p>
                         </div>
                       )}
                     </CardContent>
@@ -513,7 +513,7 @@ export default function TestResultDashboard({ user }: TestResultDashboardProps) 
                             <div key={index} className="space-y-2">
                               <div className="flex justify-between items-center">
                                 <span className="text-sm font-medium">{subject.subject}</span>
-                                <span className="text-sm text-gray-600">{subject.score}%</span>
+                                <span className="text-sm text-muted-foreground">{subject.score}%</span>
                               </div>
                               <Progress value={subject.score} className="h-2" />
                             </div>
@@ -521,8 +521,8 @@ export default function TestResultDashboard({ user }: TestResultDashboardProps) 
                         </>
                       ) : (
                         <div className="text-center py-8">
-                          <Brain className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                          <p className="text-gray-500">Complete tests to analyze strengths</p>
+                          <Brain className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+                          <p className="text-muted-foreground">Complete tests to analyze strengths</p>
                         </div>
                       )}
                     </CardContent>
@@ -553,7 +553,7 @@ export default function TestResultDashboard({ user }: TestResultDashboardProps) 
                               </li>
                             ))}
                           {subjectWiseData.filter(subject => subject.score >= 75).length === 0 && (
-                            <li className="text-gray-500">Keep practicing to build strengths</li>
+                            <li className="text-muted-foreground">Keep practicing to build strengths</li>
                           )}
                         </ul>
                       </div>
@@ -575,7 +575,7 @@ export default function TestResultDashboard({ user }: TestResultDashboardProps) 
                               </li>
                             ))}
                           {subjectWiseData.filter(subject => subject.score < 60).length === 0 && (
-                            <li className="text-gray-500">Great! No weak areas identified</li>
+                            <li className="text-muted-foreground">Great! No weak areas identified</li>
                           )}
                         </ul>
                       </div>
@@ -606,7 +606,7 @@ export default function TestResultDashboard({ user }: TestResultDashboardProps) 
                             </li>
                           )}
                           {totalTests === 0 && (
-                            <li className="text-gray-500">Start taking tests to earn achievements</li>
+                            <li className="text-muted-foreground">Start taking tests to earn achievements</li>
                           )}
                         </ul>
                       </div>
@@ -615,7 +615,7 @@ export default function TestResultDashboard({ user }: TestResultDashboardProps) 
                     {/* Improvement Tracking */}
                     {analyticsData?.improvement_data?.improvement_available && (
                       <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                        <h4 className="font-semibold text-blue-900 mb-2">📈 Improvement Tracking</h4>
+                        <h4 className="font-semibold text-foreground mb-2">📈 Improvement Tracking</h4>
                         <p className="text-blue-800 text-sm">
                           You've improved by {analyticsData.improvement_data.improvement_points?.toFixed(1)} points
                           ({analyticsData.improvement_data.improvement_percentage?.toFixed(1)}%) since your first attempts!
@@ -640,7 +640,7 @@ export default function TestResultDashboard({ user }: TestResultDashboardProps) 
                 <div className="flex items-center gap-3">
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
                   <div>
-                    <p className="font-medium text-blue-900 text-sm">Preparing test...</p>
+                    <p className="font-medium text-foreground text-sm">Preparing test...</p>
                     <p className="text-xs text-blue-700">Generating questions and setting up your test session</p>
                   </div>
                 </div>
@@ -654,9 +654,9 @@ export default function TestResultDashboard({ user }: TestResultDashboardProps) 
                 </div>
               ) : availableTests.length === 0 ? (
                 <div className="text-center py-12">
-                  <Target className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                  <h3 className="text-xl text-gray-600 mb-2">No tests available</h3>
-                  <p className="text-gray-500 mb-4">Purchase a course to access mock tests</p>
+                  <Target className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+                  <h3 className="text-xl text-muted-foreground mb-2">No tests available</h3>
+                  <p className="text-muted-foreground mb-4">Purchase a course to access mock tests</p>
                   <Link to="/courses">
                     <Button>Browse Courses</Button>
                   </Link>
@@ -684,7 +684,7 @@ export default function TestResultDashboard({ user }: TestResultDashboardProps) 
                             <h3 className="text-lg mb-1">{test.subject_name}</h3>
                             <Badge variant="secondary">{test.course_name}</Badge>
                             {test.test_number && (
-                              <div className="text-sm text-gray-600 mt-1">
+                              <div className="text-sm text-muted-foreground mt-1">
                                 Test Card #{test.test_number}
                               </div>
                             )}
@@ -693,7 +693,7 @@ export default function TestResultDashboard({ user }: TestResultDashboardProps) 
                             variant={isExhausted ? 'outline' : test.status === 'completed' ? 'default' : 'secondary'}
                             className={
                               isExhausted
-                                ? 'bg-gray-100 text-gray-600 border-gray-300'
+                                ? 'bg-gray-100 text-muted-foreground border-gray-300'
                                 : test.status === 'completed'
                                 ? 'bg-green-100 text-green-800'
                                 : 'bg-blue-100 text-blue-800'
@@ -707,7 +707,7 @@ export default function TestResultDashboard({ user }: TestResultDashboardProps) 
                         {test.test_card_id && (
                           <div className="space-y-3 mb-4">
                             <div className="flex items-center justify-between text-sm">
-                              <span className="text-gray-600">Attempts Used:</span>
+                              <span className="text-muted-foreground">Attempts Used:</span>
                               <span className="font-medium">
                                 {test.attempts_used}/3
                               </span>
@@ -715,12 +715,12 @@ export default function TestResultDashboard({ user }: TestResultDashboardProps) 
 
                             {test.latest_score > 0 && (
                               <div className="flex items-center justify-between text-sm">
-                                <span className="text-gray-600">
+                                <span className="text-muted-foreground">
                                   {isExhausted ? 'Final Score:' : 'Latest Score:'}
                                 </span>
                                 <span className={`font-medium ${
                                   isExhausted
-                                    ? 'text-gray-700 text-base'
+                                    ? 'text-foreground text-base'
                                     : 'text-blue-600'
                                 }`}>
                                   {test.latest_score}/50 ({Math.round(test.latest_percentage)}%)
@@ -729,7 +729,7 @@ export default function TestResultDashboard({ user }: TestResultDashboardProps) 
                             )}
 
                             <div className="flex items-center justify-between text-sm">
-                              <span className="text-gray-600">Remaining:</span>
+                              <span className="text-muted-foreground">Remaining:</span>
                               <span className={`font-medium ${
                                 test.remaining_attempts > 0 ? 'text-green-600' : 'text-red-600'
                               }`}>
@@ -740,7 +740,7 @@ export default function TestResultDashboard({ user }: TestResultDashboardProps) 
                             {/* Show performance indicator for exhausted cards */}
                             {isExhausted && test.latest_percentage > 0 && (
                               <div className="mt-3 p-2 rounded-lg bg-gray-50 border">
-                                <div className="flex items-center justify-between text-xs text-gray-600 mb-1">
+                                <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
                                   <span>Performance</span>
                                   <span>{Math.round(test.latest_percentage)}%</span>
                                 </div>
@@ -756,8 +756,8 @@ export default function TestResultDashboard({ user }: TestResultDashboardProps) 
                         <Button
                           className={`w-full ${
                             isExhausted
-                              ? 'bg-gray-400 hover:bg-gray-400 cursor-not-allowed'
-                              : ''
+                              ? '!bg-gray-400 hover:!bg-gray-400 cursor-not-allowed'
+                              : '!bg-slate-900 !text-white hover:!bg-slate-800 dark:!bg-slate-700 dark:hover:!bg-slate-600'
                           }`}
                           disabled={isExhausted || isLoadingThisCard}
                           onClick={() => handleStartTest(test)}

@@ -103,7 +103,7 @@ export default function AccountManagement({ user, onLogout }: AccountManagementP
       <div className="container mx-auto px-4 py-8 max-w-4xl">
         <div className="mb-8">
           <h1 className="text-4xl mb-2">Account Settings</h1>
-          <p className="text-xl text-gray-600">Manage your account preferences and security</p>
+          <p className="text-xl text-muted-foreground">Manage your account preferences and security</p>
         </div>
 
         <div className="space-y-6">
@@ -172,7 +172,7 @@ export default function AccountManagement({ user, onLogout }: AccountManagementP
                   <Key className="w-5 h-5" />
                   Two-Factor Authentication
                 </h3>
-                <p className="text-sm text-gray-600 mb-4">
+                <p className="text-sm text-muted-foreground mb-4">
                   Add an extra layer of security to your account
                 </p>
                 <Button variant="outline">
@@ -195,7 +195,7 @@ export default function AccountManagement({ user, onLogout }: AccountManagementP
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
                   <Label htmlFor="email-notif">Email Notifications</Label>
-                  <p className="text-sm text-gray-600">Receive notifications via email</p>
+                  <p className="text-sm text-muted-foreground">Receive notifications via email</p>
                 </div>
                 <Switch
                   id="email-notif"
@@ -209,7 +209,7 @@ export default function AccountManagement({ user, onLogout }: AccountManagementP
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
                   <Label htmlFor="push-notif">Push Notifications</Label>
-                  <p className="text-sm text-gray-600">Receive push notifications in browser</p>
+                  <p className="text-sm text-muted-foreground">Receive push notifications in browser</p>
                 </div>
                 <Switch
                   id="push-notif"
@@ -223,7 +223,7 @@ export default function AccountManagement({ user, onLogout }: AccountManagementP
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
                   <Label htmlFor="test-reminders">Test Reminders</Label>
-                  <p className="text-sm text-gray-600">Get reminders for scheduled tests</p>
+                  <p className="text-sm text-muted-foreground">Get reminders for scheduled tests</p>
                 </div>
                 <Switch
                   id="test-reminders"
@@ -237,7 +237,7 @@ export default function AccountManagement({ user, onLogout }: AccountManagementP
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
                   <Label htmlFor="community-updates">Community Updates</Label>
-                  <p className="text-sm text-gray-600">Notifications from community posts</p>
+                  <p className="text-sm text-muted-foreground">Notifications from community posts</p>
                 </div>
                 <Switch
                   id="community-updates"
@@ -251,7 +251,7 @@ export default function AccountManagement({ user, onLogout }: AccountManagementP
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
                   <Label htmlFor="weekly-report">Weekly Progress Report</Label>
-                  <p className="text-sm text-gray-600">Receive weekly summary of your progress</p>
+                  <p className="text-sm text-muted-foreground">Receive weekly summary of your progress</p>
                 </div>
                 <Switch
                   id="weekly-report"
@@ -277,7 +277,7 @@ export default function AccountManagement({ user, onLogout }: AccountManagementP
                   <CheckCircle2 className="w-4 h-4 text-green-600" />
                   Data Privacy
                 </h4>
-                <p className="text-sm text-gray-600">
+                <p className="text-sm text-muted-foreground">
                   Your data is encrypted and secure. We never share your personal information with third parties.
                 </p>
               </div>
@@ -302,7 +302,7 @@ export default function AccountManagement({ user, onLogout }: AccountManagementP
               {/* Deactivate Account */}
               <div className="p-4 border border-yellow-200 bg-yellow-50 rounded-lg">
                 <h4 className="mb-2">Deactivate Account</h4>
-                <p className="text-sm text-gray-600 mb-4">
+                <p className="text-sm text-muted-foreground mb-4">
                   Temporarily disable your account. You can reactivate it anytime by logging back in.
                 </p>
                 <AlertDialog>
@@ -329,7 +329,7 @@ export default function AccountManagement({ user, onLogout }: AccountManagementP
               {/* Delete Account */}
               <div className="p-4 border border-red-200 bg-red-50 rounded-lg">
                 <h4 className="mb-2 text-red-600">Delete Account Permanently</h4>
-                <p className="text-sm text-gray-600 mb-4">
+                <p className="text-sm text-muted-foreground mb-4">
                   Permanently delete your account and all associated data. This action cannot be undone.
                 </p>
                 <AlertDialog>

@@ -141,10 +141,10 @@ export default function SubjectSelection({ user }: SubjectSelectionProps) {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-background dark:bg-slate-900">
         <Header user={user} />
         <div className="container mx-auto px-4 py-8 flex items-center justify-center">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 text-foreground">
             <Loader2 className="w-6 h-6 animate-spin" />
             <span>Loading subjects...</span>
           </div>
@@ -155,12 +155,12 @@ export default function SubjectSelection({ user }: SubjectSelectionProps) {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-background dark:bg-slate-900">
         <Header user={user} />
         <div className="container mx-auto px-4 py-8">
           <div className="text-center">
-            <h2 className="text-2xl mb-4">Error Loading Subjects</h2>
-            <p className="text-gray-600 mb-4">{error}</p>
+            <h2 className="text-2xl mb-4 text-foreground">Error Loading Subjects</h2>
+            <p className="text-muted-foreground dark:text-muted-foreground mb-4">{error}</p>
             <Button onClick={() => courseId && dispatch(fetchSubjectsByCourse(parseInt(courseId)))}>
               Try Again
             </Button>
@@ -172,12 +172,12 @@ export default function SubjectSelection({ user }: SubjectSelectionProps) {
 
   if (!course || subjects.length === 0) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-background dark:bg-slate-900">
         <Header user={user} />
         <div className="container mx-auto px-4 py-8">
           <div className="text-center">
-            <h2 className="text-2xl mb-4">No Subjects Found</h2>
-            <p className="text-gray-600 mb-4">No subjects available for this course.</p>
+            <h2 className="text-2xl mb-4 text-foreground">No Subjects Found</h2>
+            <p className="text-muted-foreground dark:text-muted-foreground mb-4">No subjects available for this course.</p>
             <Link to="/courses">
               <Button>Back to Courses</Button>
             </Link>
@@ -188,9 +188,9 @@ export default function SubjectSelection({ user }: SubjectSelectionProps) {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-background dark:bg-slate-900">
       <Header user={user} />
-      
+
       <div className="container mx-auto px-4 py-8">
         {/* Breadcrumb */}
         <div className="flex items-center gap-2 mb-6">
@@ -204,8 +204,8 @@ export default function SubjectSelection({ user }: SubjectSelectionProps) {
 
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-4xl mb-2">Select Subjects for {course.course_name}</h1>
-          <p className="text-xl text-gray-600">Choose individual subjects or get the complete bundle</p>
+          <h1 className="text-4xl mb-2 text-foreground">Select Subjects for {course.course_name}</h1>
+          <p className="text-xl text-muted-foreground dark:text-muted-foreground">Choose individual subjects or get the complete bundle</p>
         </div>
 
         {/* Main Layout: Left Content + Right Cart Summary */}
@@ -215,19 +215,19 @@ export default function SubjectSelection({ user }: SubjectSelectionProps) {
             {/* Complete Bundle Section */}
             {(bundle || subjects.length > 0) && (
               <div>
-                <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
+                <h2 className="text-2xl font-bold mb-4 flex items-center gap-2 text-foreground">
                   <Zap className="w-6 h-6 text-purple-600" />
                   Complete Bundle Package
                 </h2>
-                <Card className="border-2 border-purple-500 bg-gradient-to-br from-purple-50 to-pink-50">
+                <Card className="border-2 border-purple-500 bg-gradient-to-br from-purple-50 dark:from-purple-900/20 to-pink-50 dark:to-pink-900/20">
                   <CardHeader>
                     <div className="flex items-start justify-between">
                       <div>
                         <div className="flex items-center gap-2 mb-2">
                           <Badge className="bg-purple-600">Best Value</Badge>
                         </div>
-                        <CardTitle className="text-2xl">Complete Bundle</CardTitle>
-                        <CardDescription>All subjects included with 30% discount</CardDescription>
+                        <CardTitle className="text-2xl text-foreground">Complete Bundle</CardTitle>
+                        <CardDescription className="text-muted-foreground dark:text-muted-foreground">All subjects included with 30% discount</CardDescription>
                       </div>
                     </div>
                   </CardHeader>
@@ -241,7 +241,7 @@ export default function SubjectSelection({ user }: SubjectSelectionProps) {
                   </div>
 
                   <div className="flex items-center gap-4">
-                    <div className="text-gray-500 line-through">₹{bundlePrice}</div>
+                    <div className="text-muted-foreground line-through">₹{bundlePrice}</div>
                     <div className="text-3xl text-purple-600">₹{bundleFinalPrice}</div>
                     <Badge variant="destructive">Save ₹{bundleDiscount}</Badge>
                   </div>
@@ -305,7 +305,7 @@ export default function SubjectSelection({ user }: SubjectSelectionProps) {
                         <div className="text-4xl">{icon}</div>
                         <div className="flex-1">
                           <h4 className="text-xl mb-1">{subject.subject_name}</h4>
-                          <div className="flex items-center gap-4 text-sm text-gray-600">
+                          <div className="flex items-center gap-4 text-sm text-muted-foreground">
                             <span className="flex items-center gap-1">
                               <FileText className="w-4 h-4" />
                               {subject.total_mock || 50}+ tests
@@ -318,7 +318,7 @@ export default function SubjectSelection({ user }: SubjectSelectionProps) {
                         </div>
                         <div className="text-right">
                           <div className="text-2xl">₹{price}</div>
-                          <div className="text-sm text-gray-500">per subject</div>
+                          <div className="text-sm text-muted-foreground">per subject</div>
                         </div>
                       </div>
                     </CardContent>
@@ -336,7 +336,7 @@ export default function SubjectSelection({ user }: SubjectSelectionProps) {
               </CardHeader>
               <CardContent className="space-y-4">
                 {selectedSubjects.length === 0 ? (
-                  <p className="text-gray-500 text-sm text-center py-4">
+                  <p className="text-muted-foreground text-sm text-center py-4">
                     No subjects selected
                   </p>
                 ) : (
@@ -369,7 +369,7 @@ export default function SubjectSelection({ user }: SubjectSelectionProps) {
                   </>
                 )}
 
-                <div className="border-t pt-4 space-y-2 text-sm text-gray-600">
+                <div className="border-t pt-4 space-y-2 text-sm text-muted-foreground">
                   <div className="flex items-center gap-2">
                     <CheckCircle2 className="w-4 h-4 text-green-600" />
                     <span>Secure payment</span>

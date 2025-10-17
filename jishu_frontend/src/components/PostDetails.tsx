@@ -148,9 +148,9 @@ Feel free to ask any questions in the comments. Happy studying! 📚`,
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-background dark:bg-slate-900">
       <Header user={user} />
-      
+
       <div className="container mx-auto px-4 py-8">
         <div className="mb-6">
           <Link to="/community">
@@ -181,16 +181,16 @@ Feel free to ask any questions in the comments. Happy studying! 📚`,
                       <AvatarFallback>{post.author.name.charAt(0)}</AvatarFallback>
                     </Avatar>
                     <div>
-                      <h4>{post.author.name}</h4>
-                      <p className="text-sm text-gray-600">{post.author.role} • {post.author.followers} followers</p>
+                      <h4 className="text-foreground">{post.author.name}</h4>
+                      <p className="text-sm text-muted-foreground dark:text-muted-foreground">{post.author.role} • {post.author.followers} followers</p>
                     </div>
                   </div>
                   <Button>Follow</Button>
                 </div>
 
                 {/* Title and Meta */}
-                <h1 className="text-4xl mb-4">{post.title}</h1>
-                <div className="flex items-center gap-4 text-sm text-gray-600 mb-4">
+                <h1 className="text-4xl mb-4 text-foreground">{post.title}</h1>
+                <div className="flex items-center gap-4 text-sm text-muted-foreground dark:text-muted-foreground mb-4">
                   <span className="flex items-center gap-1">
                     <Clock className="w-4 h-4" />
                     {post.timeAgo}
@@ -235,7 +235,7 @@ Feel free to ask any questions in the comments. Happy studying! 📚`,
               <CardContent className="p-8">
                 <div className="prose max-w-none">
                   {post.content.split('\n').map((paragraph, idx) => (
-                    <p key={idx} className="mb-4 text-gray-700 leading-relaxed whitespace-pre-wrap">
+                    <p key={idx} className="mb-4 text-foreground leading-relaxed whitespace-pre-wrap">
                       {paragraph}
                     </p>
                   ))}
@@ -282,9 +282,9 @@ Feel free to ask any questions in the comments. Happy studying! 📚`,
                         <div className="bg-gray-50 rounded-lg p-4">
                           <div className="flex items-center justify-between mb-2">
                             <h4>{comment.author.name}</h4>
-                            <span className="text-xs text-gray-500">{comment.timeAgo}</span>
+                            <span className="text-xs text-muted-foreground">{comment.timeAgo}</span>
                           </div>
-                          <p className="text-gray-700">{comment.content}</p>
+                          <p className="text-foreground">{comment.content}</p>
                         </div>
                         <div className="flex items-center gap-4 mt-2">
                           <Button
@@ -322,11 +322,11 @@ Feel free to ask any questions in the comments. Happy studying! 📚`,
                 </Avatar>
                 <div>
                   <h4 className="text-lg mb-1">{post.author.name}</h4>
-                  <p className="text-sm text-gray-600">{post.author.role}</p>
-                  <p className="text-sm text-gray-600">{post.author.followers} followers</p>
+                  <p className="text-sm text-muted-foreground">{post.author.role}</p>
+                  <p className="text-sm text-muted-foreground">{post.author.followers} followers</p>
                 </div>
                 <Button className="w-full">Follow</Button>
-                <p className="text-sm text-gray-600">
+                <p className="text-sm text-muted-foreground">
                   Sharing my NEET preparation journey and helping fellow aspirants achieve their dreams! 🎯
                 </p>
               </CardContent>

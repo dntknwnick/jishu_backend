@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Header from '../Header';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
@@ -31,8 +31,8 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '../ui/alert-dialog';
-import { 
-  Search, 
+import {
+  Search,
   UserCheck,
   UserX,
   Shield,
@@ -40,7 +40,10 @@ import {
   MoreVertical,
   Eye,
   Ban,
-  CheckCircle2
+  CheckCircle2,
+  Loader2,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -49,6 +52,7 @@ import {
   DropdownMenuTrigger,
 } from '../ui/dropdown-menu';
 import { toast } from 'sonner@2.0.3';
+import { adminApi } from '../../services/api';
 
 interface ManageUsersProps {
   user: any;
@@ -57,129 +61,61 @@ interface ManageUsersProps {
 export default function ManageUsers({ user }: ManageUsersProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [roleFilter, setRoleFilter] = useState('all');
-  
-  const [users, setUsers] = useState([
-    {
-      id: 1,
-      name: 'Priya Sharma',
-      email: 'priya@example.com',
-      avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Priya',
-      role: 'user',
-      status: 'active',
-      course: 'NEET',
-      joinedDate: '2025-01-15',
-      lastLogin: '2025-02-09',
-      testsCompleted: 47,
-      purchaseCount: 3,
-      totalSpent: 1497
-    },
-    {
-      id: 2,
-      name: 'Rahul Kumar',
-      email: 'rahul@example.com',
-      avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Rahul',
-      role: 'user',
-      status: 'active',
-      course: 'JEE Advanced',
-      joinedDate: '2025-01-20',
-      lastLogin: '2025-02-09',
-      testsCompleted: 38,
-      purchaseCount: 2,
-      totalSpent: 1198
-    },
-    {
-      id: 3,
-      name: 'Ananya Patel',
-      email: 'ananya@example.com',
-      avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Ananya',
-      role: 'user',
-      status: 'inactive',
-      course: 'NEET',
-      joinedDate: '2024-12-10',
-      lastLogin: '2025-01-15',
-      testsCompleted: 82,
-      purchaseCount: 4,
-      totalSpent: 1996
-    },
-    {
-      id: 4,
-      name: 'Vikram Singh',
-      email: 'vikram@example.com',
-      avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Vikram',
-      role: 'user',
-      status: 'suspended',
-      course: 'JEE Mains',
-      joinedDate: '2025-02-01',
-      lastLogin: '2025-02-05',
-      testsCompleted: 12,
-      purchaseCount: 1,
-      totalSpent: 499
-    },
-    {
-      id: 5,
-      name: 'Dr. Amit Gupta',
-      email: 'amit@jishu.com',
-      avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Amit',
-      role: 'admin',
-      status: 'active',
-      course: '-',
-      joinedDate: '2024-01-01',
-      lastLogin: '2025-02-09',
-      testsCompleted: 0,
-      purchaseCount: 0,
-      totalSpent: 0
+  const [isPremiumFilter, setIsPremiumFilter] = useState('all');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [perPage] = useState(10);
+
+  const [users, setUsers] = useState<any[]>([]);
+  const [pagination, setPagination] = useState({ page: 1, pages: 1, total: 0, per_page: 10 });
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Fetch users from API
+  useEffect(() => {
+    const fetchUsers = async () => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const response = await adminApi.getUsers(
+          currentPage,
+          perPage,
+          searchQuery,
+          statusFilter === 'all' ? '' : statusFilter,
+          isPremiumFilter === 'all' ? '' : isPremiumFilter
+        );
+        setUsers(response.data?.users || []);
+        setPagination(response.data?.pagination || { page: 1, pages: 1, total: 0, per_page: 10 });
+      } catch (err: any) {
+        setError(err.message || 'Failed to fetch users');
+        toast.error('Failed to load users');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchUsers();
+  }, [currentPage, searchQuery, statusFilter, isPremiumFilter, perPage]);
+
+  const handleDeactivateUser = async (userId: number) => {
+    try {
+      await adminApi.deactivateUser(userId);
+      setUsers(users.filter(u => u.id !== userId));
+      toast.success('User deactivated successfully!');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to deactivate user');
     }
-  ]);
-
-  const filteredUsers = users.filter(user => {
-    const matchesSearch = 
-      user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.email.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || user.status === statusFilter;
-    const matchesRole = roleFilter === 'all' || user.role === roleFilter;
-    return matchesSearch && matchesStatus && matchesRole;
-  });
-
-  const handleToggleStatus = (userId: number) => {
-    setUsers(users.map(u =>
-      u.id === userId
-        ? { ...u, status: u.status === 'active' ? 'inactive' : 'active' }
-        : u
-    ));
-    toast.success('User status updated!');
   };
 
-  const handleSuspendUser = (userId: number) => {
-    setUsers(users.map(u =>
-      u.id === userId ? { ...u, status: 'suspended' } : u
-    ));
-    toast.success('User suspended!');
-  };
-
-  const handleReactivateUser = (userId: number) => {
-    setUsers(users.map(u =>
-      u.id === userId ? { ...u, status: 'active' } : u
-    ));
-    toast.success('User reactivated!');
-  };
-
-  const handleDeleteUser = (userId: number) => {
-    setUsers(users.filter(u => u.id !== userId));
-    toast.success('User deleted permanently!');
-  };
-
-  const handlePromoteToAdmin = (userId: number) => {
-    setUsers(users.map(u =>
-      u.id === userId ? { ...u, role: 'admin' } : u
-    ));
-    toast.success('User promoted to admin!');
+  const handlePageChange = (newPage: number) => {
+    if (newPage >= 1 && newPage <= pagination.pages) {
+      setCurrentPage(newPage);
+    }
   };
 
   const stats = [
     {
       label: 'Total Users',
-      value: users.length.toString(),
+      value: pagination.total.toString(),
       icon: <UserCheck className="w-6 h-6 text-blue-600" />
     },
     {
@@ -188,25 +124,25 @@ export default function ManageUsers({ user }: ManageUsersProps) {
       icon: <CheckCircle2 className="w-6 h-6 text-green-600" />
     },
     {
-      label: 'Suspended',
-      value: users.filter(u => u.status === 'suspended').length.toString(),
-      icon: <Ban className="w-6 h-6 text-red-600" />
+      label: 'Premium Users',
+      value: users.filter(u => u.is_premium).length.toString(),
+      icon: <CheckCircle2 className="w-6 h-6 text-yellow-600" />
     },
     {
       label: 'Admins',
-      value: users.filter(u => u.role === 'admin').length.toString(),
+      value: users.filter(u => u.is_admin).length.toString(),
       icon: <Shield className="w-6 h-6 text-purple-600" />
     }
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-background dark:bg-slate-900">
       <Header user={user} />
-      
+
       <div className="container mx-auto px-4 py-8">
         <div className="mb-8">
-          <h1 className="text-4xl mb-2">Manage Users</h1>
-          <p className="text-xl text-gray-600">View and moderate user accounts</p>
+          <h1 className="text-4xl mb-2 text-foreground">Manage Users</h1>
+          <p className="text-xl text-muted-foreground dark:text-muted-foreground">View and moderate user accounts</p>
         </div>
 
         {/* Stats */}
@@ -215,10 +151,10 @@ export default function ManageUsers({ user }: ManageUsersProps) {
             <Card key={idx}>
               <CardContent className="p-6">
                 <div className="flex items-center justify-between mb-2">
-                  <p className="text-sm text-gray-600">{stat.label}</p>
+                  <p className="text-sm text-muted-foreground dark:text-muted-foreground">{stat.label}</p>
                   {stat.icon}
                 </div>
-                <p className="text-3xl">{stat.value}</p>
+                <p className="text-3xl text-foreground">{stat.value}</p>
               </CardContent>
             </Card>
           ))}
@@ -229,15 +165,21 @@ export default function ManageUsers({ user }: ManageUsersProps) {
           <CardContent className="p-4">
             <div className="grid md:grid-cols-3 gap-4">
               <div className="relative">
-                <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search users..."
+                  placeholder="Search users by name or email..."
                   className="pl-10"
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setCurrentPage(1);
+                  }}
                 />
               </div>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <Select value={statusFilter} onValueChange={(val) => {
+                setStatusFilter(val);
+                setCurrentPage(1);
+              }}>
                 <SelectTrigger>
                   <SelectValue placeholder="Filter by status" />
                 </SelectTrigger>
@@ -245,17 +187,19 @@ export default function ManageUsers({ user }: ManageUsersProps) {
                   <SelectItem value="all">All Status</SelectItem>
                   <SelectItem value="active">Active</SelectItem>
                   <SelectItem value="inactive">Inactive</SelectItem>
-                  <SelectItem value="suspended">Suspended</SelectItem>
                 </SelectContent>
               </Select>
-              <Select value={roleFilter} onValueChange={setRoleFilter}>
+              <Select value={isPremiumFilter} onValueChange={(val) => {
+                setIsPremiumFilter(val);
+                setCurrentPage(1);
+              }}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Filter by role" />
+                  <SelectValue placeholder="Filter by membership" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Roles</SelectItem>
-                  <SelectItem value="user">Users</SelectItem>
-                  <SelectItem value="admin">Admins</SelectItem>
+                  <SelectItem value="all">All Users</SelectItem>
+                  <SelectItem value="true">Premium Only</SelectItem>
+                  <SelectItem value="false">Free Only</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -265,60 +209,77 @@ export default function ManageUsers({ user }: ManageUsersProps) {
         {/* Users Table */}
         <Card>
           <CardHeader>
-            <CardTitle>All Users ({filteredUsers.length})</CardTitle>
+            <CardTitle className="text-foreground">All Users ({pagination.total})</CardTitle>
           </CardHeader>
           <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>User</TableHead>
-                  <TableHead>Role</TableHead>
-                  <TableHead>Course</TableHead>
-                  <TableHead>Tests</TableHead>
-                  <TableHead>Total Spent</TableHead>
-                  <TableHead>Joined</TableHead>
-                  <TableHead>Last Login</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredUsers.map((user) => (
+            {isLoading ? (
+              <div className="flex items-center justify-center py-8 text-foreground">
+                <Loader2 className="w-6 h-6 animate-spin mr-2" />
+                <span>Loading users...</span>
+              </div>
+            ) : error ? (
+              <div className="text-center py-8 text-red-600 dark:text-red-400">
+                <p>{error}</p>
+                <Button onClick={() => window.location.reload()} className="mt-4">
+                  Retry
+                </Button>
+              </div>
+            ) : users.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground dark:text-muted-foreground">
+                <p>No users found</p>
+              </div>
+            ) : (
+              <>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>User</TableHead>
+                      <TableHead>Role</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Membership</TableHead>
+                      <TableHead>Joined</TableHead>
+                      <TableHead>Last Login</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {users.map((user) => (
                   <TableRow key={user.id}>
                     <TableCell>
                       <div className="flex items-center gap-3">
                         <Avatar>
-                          <AvatarImage src={user.avatar} alt={user.name} />
+                          <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user.name}`} alt={user.name} />
                           <AvatarFallback>{user.name.charAt(0)}</AvatarFallback>
                         </Avatar>
                         <div>
-                          <p>{user.name}</p>
-                          <p className="text-xs text-gray-600">{user.email}</p>
+                          <p className="font-medium">{user.name}</p>
+                          <p className="text-xs text-muted-foreground">{user.email_id}</p>
                         </div>
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge variant={user.role === 'admin' ? 'default' : 'secondary'}>
-                        {user.role === 'admin' && <Shield className="w-3 h-3 mr-1" />}
-                        {user.role}
+                      <Badge variant={user.is_admin ? 'default' : 'secondary'}>
+                        {user.is_admin && <Shield className="w-3 h-3 mr-1" />}
+                        {user.is_admin ? 'Admin' : 'User'}
                       </Badge>
                     </TableCell>
-                    <TableCell>{user.course}</TableCell>
-                    <TableCell>{user.testsCompleted}</TableCell>
-                    <TableCell>₹{user.totalSpent.toLocaleString()}</TableCell>
-                    <TableCell>{user.joinedDate}</TableCell>
-                    <TableCell>{user.lastLogin}</TableCell>
                     <TableCell>
                       <Badge
                         variant={
                           user.status === 'active' ? 'default' :
-                          user.status === 'inactive' ? 'secondary' :
-                          'destructive'
+                          'secondary'
                         }
                       >
                         {user.status}
                       </Badge>
                     </TableCell>
+                    <TableCell>
+                      <Badge variant={user.is_premium ? 'default' : 'outline'}>
+                        {user.is_premium ? 'Premium' : 'Free'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>{new Date(user.created_at).toLocaleDateString()}</TableCell>
+                    <TableCell>{user.last_login ? new Date(user.last_login).toLocaleDateString() : 'Never'}</TableCell>
                     <TableCell>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -335,48 +296,27 @@ export default function ManageUsers({ user }: ManageUsersProps) {
                             <Mail className="w-4 h-4 mr-2" />
                             Send Email
                           </DropdownMenuItem>
-                          {user.role !== 'admin' && (
-                            <DropdownMenuItem onClick={() => handlePromoteToAdmin(user.id)}>
-                              <Shield className="w-4 h-4 mr-2" />
-                              Make Admin
-                            </DropdownMenuItem>
-                          )}
-                          {user.status === 'suspended' ? (
-                            <DropdownMenuItem onClick={() => handleReactivateUser(user.id)}>
-                              <CheckCircle2 className="w-4 h-4 mr-2" />
-                              Reactivate
-                            </DropdownMenuItem>
-                          ) : (
-                            <DropdownMenuItem onClick={() => handleSuspendUser(user.id)}>
-                              <Ban className="w-4 h-4 mr-2" />
-                              Suspend
-                            </DropdownMenuItem>
-                          )}
-                          <DropdownMenuItem onClick={() => handleToggleStatus(user.id)}>
-                            <UserX className="w-4 h-4 mr-2" />
-                            {user.status === 'active' ? 'Deactivate' : 'Activate'}
-                          </DropdownMenuItem>
                           <AlertDialog>
                             <AlertDialogTrigger asChild>
                               <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
                                 <UserX className="w-4 h-4 mr-2 text-red-600" />
-                                <span className="text-red-600">Delete User</span>
+                                <span className="text-red-600">Deactivate</span>
                               </DropdownMenuItem>
                             </AlertDialogTrigger>
                             <AlertDialogContent>
                               <AlertDialogHeader>
-                                <AlertDialogTitle>Delete User?</AlertDialogTitle>
+                                <AlertDialogTitle>Deactivate User?</AlertDialogTitle>
                                 <AlertDialogDescription>
-                                  This will permanently delete {user.name}'s account and all associated data. This action cannot be undone.
+                                  This will deactivate {user.name}'s account. They will not be able to access the platform.
                                 </AlertDialogDescription>
                               </AlertDialogHeader>
                               <AlertDialogFooter>
                                 <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction 
-                                  onClick={() => handleDeleteUser(user.id)}
+                                <AlertDialogAction
+                                  onClick={() => handleDeactivateUser(user.id)}
                                   className="bg-red-600 hover:bg-red-700"
                                 >
-                                  Delete
+                                  Deactivate
                                 </AlertDialogAction>
                               </AlertDialogFooter>
                             </AlertDialogContent>
@@ -385,9 +325,38 @@ export default function ManageUsers({ user }: ManageUsersProps) {
                       </DropdownMenu>
                     </TableCell>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                    ))}
+                  </TableBody>
+                </Table>
+
+                {/* Pagination */}
+                <div className="flex items-center justify-between mt-6 pt-4 border-t">
+                  <div className="text-sm text-muted-foreground">
+                    Page {pagination.page} of {pagination.pages} ({pagination.total} total users)
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handlePageChange(currentPage - 1)}
+                      disabled={currentPage === 1}
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                      Previous
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handlePageChange(currentPage + 1)}
+                      disabled={currentPage === pagination.pages}
+                    >
+                      Next
+                      <ChevronRight className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
       </div>
