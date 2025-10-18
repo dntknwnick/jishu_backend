@@ -49,25 +49,7 @@ class Config:
     AI_VECTOR_STORE_PATH = os.getenv('AI_VECTOR_STORE_PATH', os.path.join(os.getcwd(), 'vector_stores'))
     VECTOR_STORE_CHUNK_SIZE = int(os.getenv('VECTOR_STORE_CHUNK_SIZE', '1000'))
 
-    # New RAG Pipeline Configuration
-    RAG_PDF_FOLDER = os.getenv('RAG_PDF_FOLDER', os.path.join(os.getcwd(), 'pdfs', 'subjects'))
-    RAG_VECTOR_STORE_PATH = os.getenv('RAG_VECTOR_STORE_PATH', os.path.join(os.getcwd(), 'vector_stores'))
-    RAG_OLLAMA_MODEL = os.getenv('RAG_OLLAMA_MODEL', 'llama3.2:1b')
-    RAG_EMBEDDING_MODEL = os.getenv('RAG_EMBEDDING_MODEL', 'all-MiniLM-L6-v2')
-    RAG_CHUNK_SIZE = int(os.getenv('RAG_CHUNK_SIZE', '1000'))
-    RAG_CHUNK_OVERLAP = int(os.getenv('RAG_CHUNK_OVERLAP', '200'))
-    RAG_TOP_K_RESULTS = int(os.getenv('RAG_TOP_K_RESULTS', '3'))
-    RAG_SIMILARITY_THRESHOLD = float(os.getenv('RAG_SIMILARITY_THRESHOLD', '0.01'))
 
-    # RAG System Settings
-    RAG_AUTO_INITIALIZE = os.getenv('RAG_AUTO_INITIALIZE', 'false').lower() == 'true'  # Disabled by default
-    RAG_FORCE_RECREATE = os.getenv('RAG_FORCE_RECREATE', 'false').lower() == 'true'
-    RAG_CACHE_ENABLED = os.getenv('RAG_CACHE_ENABLED', 'true').lower() == 'true'
-    RAG_USE_FALLBACK = os.getenv('RAG_USE_FALLBACK', 'true').lower() == 'true'  # Enable fallback by default
-    RAG_TIMEOUT_SECONDS = int(os.getenv('RAG_TIMEOUT_SECONDS', '120'))  # 120 second timeout for MCQ generation
-    VECTOR_STORE_CHUNK_OVERLAP = int(os.getenv('VECTOR_STORE_CHUNK_OVERLAP', '200'))
-    VECTOR_STORE_MAX_TOKENS = int(os.getenv('VECTOR_STORE_MAX_TOKENS', '4000'))
-    VECTOR_STORE_TOP_K = int(os.getenv('VECTOR_STORE_TOP_K', '10'))
 
     # MCQ Generation Configuration
     MCQ_CACHE_ENABLED = os.getenv('MCQ_CACHE_ENABLED', 'true').lower() == 'true'

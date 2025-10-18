@@ -611,37 +611,10 @@ export interface ChatbotResponse {
   error?: string;
 }
 
-export interface RAGStatusResponse {
-  system_status: string;
-  dependencies: {
-    chromadb: boolean;
-    sentence_transformers: boolean;
-    pypdf2: boolean;
-    ollama: boolean;
-  };
-  configuration: {
-    pdf_folder_path: string;
-    vector_store_path: string;
-    ollama_model: string;
-    embedding_model: string;
-  };
-  vector_stores: {
-    [subject: string]: {
-      available: boolean;
-      document_count: number;
-      status: string;
-    };
-  };
-  subjects_available: string[];
-  health: string;
-}
+
 
 export const mcqGenerationApi = {
-  // Check RAG system status
-  getRAGStatus: () =>
-    apiRequest<RAGStatusResponse>('/api/rag/status'),
-
-  // Generate MCQ using new RAG pipeline
+  // Generate MCQ using multimodal RAG pipeline (CLIP + ChromaDB + Ollama)
   generate: (data: {
     subject: string;
     num_questions: number;
@@ -650,30 +623,6 @@ export const mcqGenerationApi = {
     apiRequest<MCQGenerationResponse>('/api/mcq/generate', {
       method: 'POST',
       body: JSON.stringify(data),
-    }),
-
-  // Initialize RAG system (Admin only)
-  initializeRAG: (data?: {
-    force_recreate?: boolean;
-  }) =>
-    apiRequest<{
-      message: string;
-      successful_subjects: string[];
-      total_subjects: number;
-      successful_count: number;
-      results: { [subject: string]: boolean };
-    }>('/api/rag/initialize', {
-      method: 'POST',
-      body: JSON.stringify(data || {}),
-    }),
-
-  // Reload specific subject vector store (Admin only)
-  reloadSubject: (subject: string) =>
-    apiRequest<{
-      message: string;
-      subject: string;
-    }>(`/api/rag/reload/${subject}`, {
-      method: 'POST',
     }),
 };
 
@@ -762,82 +711,7 @@ export const userTestsApi = {
       }),
     }),
 
-  // Chunked MCQ Generation API methods
-  startChunkedGeneration: (data: { test_attempt_id?: number; session_id?: number }) =>
-    apiRequest<{
-      success: boolean;
-      generation_id: string;
-      initial_questions: Array<{
-        id: number;
-        question: string;
-        options: { A: string; B: string; C: string; D: string };
-        correct_answer: string;
-        explanation: string;
-      }>;
-      progress: {
-        generation_id: string;
-        total_questions_needed: number;
-        questions_generated_count: number;
-        generation_status: string;
-        progress_percentage: number;
-      };
-      total_questions_needed: number;
-      questions_ready: number;
-      background_generation_started: boolean;
-    }>('/api/user/generate-test-questions-chunked', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
 
-  getGenerationProgress: (generationId: string) =>
-    apiRequest<{
-      success: boolean;
-      progress: {
-        generation_id: string;
-        total_questions_needed: number;
-        questions_generated_count: number;
-        generation_status: string;
-        progress_percentage: number;
-        error_message?: string;
-      };
-      questions: Array<{
-        id: number;
-        question: string;
-        options: { A: string; B: string; C: string; D: string };
-        correct_answer: string;
-        explanation: string;
-      }>;
-      is_complete: boolean;
-      has_error: boolean;
-    }>(`/api/user/mcq-generation-progress/${generationId}`),
-
-  getAllGeneratedQuestions: (generationId: string) =>
-    apiRequest<{
-      success: boolean;
-      questions: Array<{
-        id: number;
-        question: string;
-        options: { A: string; B: string; C: string; D: string };
-        correct_answer: string;
-        explanation: string;
-      }>;
-      total_generated: number;
-      progress: {
-        generation_id: string;
-        total_questions_needed: number;
-        questions_generated_count: number;
-        generation_status: string;
-        progress_percentage: number;
-      };
-    }>(`/api/user/mcq-generation-questions/${generationId}`),
-
-  cancelGeneration: (generationId: string) =>
-    apiRequest<{
-      success: boolean;
-      message: string;
-    }>(`/api/user/mcq-generation-cancel/${generationId}`, {
-      method: 'POST',
-    }),
 
 
 

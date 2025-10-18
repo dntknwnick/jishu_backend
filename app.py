@@ -11,6 +11,7 @@ from flask_cors import CORS
 from datetime import datetime, timedelta
 import time
 import uuid
+import logging
 
 from shared.models.user import db, User
 from shared.models.course import ExamCategory, ExamCategorySubject
@@ -43,7 +44,7 @@ def generate_fallback_questions(subject_name, num_questions=50):
                 'option_b': 'Joule',
                 'option_c': 'Watt',
                 'option_d': 'Pascal',
-                'correct_answer': 'A',
+                'correct_answer': 'Newton',  # Store actual answer text, not 'A'
                 'explanation': 'The SI unit of force is Newton (N), named after Sir Isaac Newton.'
             },
             {
@@ -52,7 +53,7 @@ def generate_fallback_questions(subject_name, num_questions=50):
                 'option_b': '3 × 10⁶ m/s',
                 'option_c': '3 × 10¹⁰ m/s',
                 'option_d': '3 × 10⁴ m/s',
-                'correct_answer': 'A',
+                'correct_answer': '3 × 10⁸ m/s',  # Store actual answer text, not 'A'
                 'explanation': 'The speed of light in vacuum is approximately 3 × 10⁸ meters per second.'
             }
         ],
@@ -63,7 +64,7 @@ def generate_fallback_questions(subject_name, num_questions=50):
                 'option_b': '12',
                 'option_c': '14',
                 'option_d': '8',
-                'correct_answer': 'A',
+                'correct_answer': '6',  # Store actual answer text, not 'A'
                 'explanation': 'Carbon has an atomic number of 6, meaning it has 6 protons in its nucleus.'
             }
         ],
@@ -74,7 +75,7 @@ def generate_fallback_questions(subject_name, num_questions=50):
                 'option_b': 'Nucleus',
                 'option_c': 'Ribosome',
                 'option_d': 'Endoplasmic reticulum',
-                'correct_answer': 'A',
+                'correct_answer': 'Mitochondria',  # Store actual answer text, not 'A'
                 'explanation': 'Mitochondria are called the powerhouse of the cell because they produce ATP energy.'
             }
         ],
@@ -85,7 +86,7 @@ def generate_fallback_questions(subject_name, num_questions=50):
                 'option_b': '2.71828',
                 'option_c': '1.41421',
                 'option_d': '2.30259',
-                'correct_answer': 'A',
+                'correct_answer': '3.14159',  # Store actual answer text, not 'A'
                 'explanation': 'π (pi) is approximately 3.14159, representing the ratio of circumference to diameter of a circle.'
             }
         ]
@@ -99,9 +100,8 @@ def generate_fallback_questions(subject_name, num_questions=50):
         template_index = i % len(subject_templates)
         base_question = subject_templates[template_index].copy()
 
-        # Add variation to question numbers
-        if i > 0:
-            base_question['question'] = f"Question {i+1}: {base_question['question']}"
+        # DO NOT add "Question N:" prefix - keep questions clean
+        # The question text should be stored as-is without numbering
 
         fallback_questions.append(base_question)
 
@@ -110,6 +110,11 @@ def generate_fallback_questions(subject_name, num_questions=50):
 def create_app(config_name='development'):
     app = Flask(__name__)
     app.config.from_object(config[config_name])
+
+    # Initialize logger
+    global logger
+    logger = logging.getLogger(__name__)
+    logger.setLevel(logging.INFO)
 
     # Initialize extensions
     db.init_app(app)
@@ -1717,6 +1722,31 @@ def create_app(config_name='development'):
             db.session.rollback()
             return error_response(f"Failed to delete comment: {str(e)}", 500)
 
+    # Subject Detection for AI Chat
+    def detect_subject_from_query(query):
+        """Detect subject from user query using keyword matching"""
+        query_lower = query.lower()
+
+        # Subject keywords mapping
+        subject_keywords = {
+            'physics': ['physics', 'newton', 'force', 'motion', 'velocity', 'acceleration', 'gravity', 'energy', 'momentum', 'wave', 'light', 'sound', 'mechanics', 'thermodynamics', 'electromagnetism'],
+            'chemistry': ['chemistry', 'atom', 'molecule', 'element', 'compound', 'reaction', 'bond', 'acid', 'base', 'salt', 'organic', 'inorganic', 'periodic', 'valence', 'oxidation'],
+            'biology': ['biology', 'cell', 'organism', 'dna', 'protein', 'enzyme', 'photosynthesis', 'respiration', 'mitochondria', 'chloroplast', 'evolution', 'genetics', 'anatomy', 'physiology'],
+            'mathematics': ['mathematics', 'math', 'algebra', 'geometry', 'calculus', 'trigonometry', 'equation', 'function', 'derivative', 'integral', 'matrix', 'vector', 'number', 'theorem'],
+            'computer_science': ['computer', 'programming', 'code', 'algorithm', 'data', 'structure', 'database', 'network', 'software', 'hardware', 'python', 'java', 'javascript', 'html', 'css']
+        }
+
+        # Check for subject keywords
+        for subject, keywords in subject_keywords.items():
+            for keyword in keywords:
+                if keyword in query_lower:
+                    logger.info(f"✅ Detected subject '{subject}' from keyword '{keyword}'")
+                    return subject
+
+        # Default to physics if no subject detected
+        logger.info(f"⚠️ No subject detected, defaulting to 'physics'")
+        return 'physics'
+
     # Enhanced AI Token Management System
     def get_user_token_limits(user):
         """Get user's daily token limits based on purchases - Enhanced for accurate limits"""
@@ -1955,6 +1985,44 @@ def create_app(config_name='development'):
 
 
     # Backward Compatibility AI Endpoints
+    @app.route('/api/ai/token-status', methods=['GET'])
+    @user_required
+    def api_ai_token_status():
+        """Get current user's AI token usage and limits"""
+        try:
+            user = get_current_user()
+            if not user:
+                return error_response("User not found", 404)
+
+            # Get today's token usage
+            today = datetime.utcnow().date()
+            today_usage = db.session.query(db.func.sum(AIChatHistory.tokens_used)).filter(
+                AIChatHistory.user_id == user.id,
+                db.func.date(AIChatHistory.created_at) == today
+            ).scalar() or 0
+
+            # Get user's token limit
+            token_limit = get_user_token_limits(user)
+
+            # Calculate remaining tokens
+            if token_limit == 0:  # Unlimited
+                remaining_tokens = float('inf')
+                is_unlimited = True
+            else:
+                remaining_tokens = max(0, token_limit - today_usage)
+                is_unlimited = False
+
+            return success_response({
+                'tokens_used_today': int(today_usage),
+                'daily_limit': token_limit if token_limit > 0 else 0,
+                'remaining_tokens': int(remaining_tokens) if remaining_tokens != float('inf') else 0,
+                'is_unlimited': is_unlimited
+            }, "Token status retrieved successfully")
+
+        except Exception as e:
+            logger.error(f"Error getting token status: {str(e)}", exc_info=True)
+            return error_response(f"Failed to get token status: {str(e)}", 500)
+
     @app.route('/api/ai/chat', methods=['POST'])
     @user_required
     def api_ai_chat():
@@ -1990,17 +2058,27 @@ def create_app(config_name='development'):
             )
 
             # Generate response using multimodal RAG pipeline
+            # The service will search across ALL collections to answer any educational question
+            # This supports multi-subject queries like "Compare Newton's Laws with atomic structure"
             import time
             start_time = time.time()
 
+            # Detect primary subject from message (for logging/analytics)
+            detected_subject = detect_subject_from_query(message)
+
+            logger.info(f"🔍 Detected primary subject: {detected_subject}")
+            logger.info(f"📚 Available collections: {list(multimodal_service.collections.keys())}")
+            logger.info(f"🔎 Searching across ALL collections for comprehensive answer...")
+
             result = multimodal_service.generate_chat_response(
                 query=message,
-                subject='general'
+                subject=detected_subject  # Used for logging, service searches all collections
             )
 
             response_time = time.time() - start_time
 
             if not result['success']:
+                logger.warning(f"⚠️ Chat generation failed: {result['error']}")
                 return error_response(result['error'], 500)
 
             ai_response = result['response']
@@ -2027,8 +2105,10 @@ def create_app(config_name='development'):
                 'session_id': session_id,
                 'response_time': response_time,
                 'model_used': result.get('model_used', 'llava'),
-                'method': 'multimodal_rag_pipeline'
-            }, f"Chat response generated in {response_time:.2f}s using multimodal RAG")
+                'method': 'multimodal_rag_pipeline',
+                'sources_used': result.get('sources_used', []),
+                'docs_count': result.get('docs_count', 0)
+            }, f"Chat response generated in {response_time:.2f}s using {len(result.get('sources_used', []))} subject collections")
 
         except Exception as e:
             db.session.rollback()
@@ -2220,172 +2300,9 @@ def create_app(config_name='development'):
             print(f"❌ Error in chatbot query: {str(e)}")
             return error_response(f"Failed to process chatbot query: {str(e)}", 500)
 
-    @app.route('/api/rag/status', methods=['GET'])
-    def api_rag_status():
-        """Get comprehensive three-layer RAG system status"""
-        try:
-            # Get status from all three layers
-            status = {
-                'system_name': 'Three-Layer RAG System',
-                'layers': {}
-            }
 
-            # Layer 1: Model Service Status
-            try:
-                from shared.services.model_service import get_model_service
-                model_service = get_model_service()
-                status['layers']['layer_1_models'] = model_service.get_status()
-            except Exception as e:
-                status['layers']['layer_1_models'] = {'status': 'error', 'error': str(e)}
 
-            # Layer 2: Vector Index Service Status
-            try:
-                from shared.services.vector_index_service import VectorIndexService
-                vector_service = VectorIndexService()
-                status['layers']['layer_2_indexing'] = vector_service.get_indexing_status()
-            except Exception as e:
-                status['layers']['layer_2_indexing'] = {'status': 'error', 'error': str(e)}
 
-            # Layer 3: RAG Query Service Status
-            try:
-                from shared.services.rag_service import get_rag_service
-                rag_service = get_rag_service()
-                status['layers']['layer_3_query'] = rag_service.get_status()
-            except Exception as e:
-                status['layers']['layer_3_query'] = {'status': 'error', 'error': str(e)}
-
-            # Overall system health
-            layer_statuses = [layer.get('status', 'unknown') for layer in status['layers'].values()]
-            if all(s == 'ready' for s in layer_statuses):
-                status['overall_status'] = 'ready'
-            elif any(s == 'ready' for s in layer_statuses):
-                status['overall_status'] = 'partial'
-            else:
-                status['overall_status'] = 'error'
-
-            return success_response(status, "Three-layer RAG status retrieved successfully")
-
-        except Exception as e:
-            return error_response(f"Failed to get RAG status: {str(e)}", 500)
-
-    @app.route('/api/rag/initialize', methods=['POST'])
-    @admin_required
-    def api_rag_initialize():
-        """Initialize three-layer RAG system (Admin only)"""
-        try:
-            data = request.get_json() or {}
-            force_recreate = data.get('force_recreate', False)
-
-            print(f"🔄 Initializing three-layer RAG system (force_recreate: {force_recreate})")
-
-            results = {
-                'layer_1_models': {'status': 'pending'},
-                'layer_2_indexing': {'status': 'pending'},
-                'layer_3_query': {'status': 'pending'}
-            }
-
-            # Layer 1: Initialize Model Service (always ready, just check)
-            try:
-                from shared.services.model_service import get_model_service
-                model_service = get_model_service()
-                model_status = model_service.get_status()
-                results['layer_1_models'] = {
-                    'status': 'ready' if model_status['status'] == 'ready' else 'error',
-                    'details': model_status
-                }
-                print("✅ Layer 1: Model Service ready")
-            except Exception as e:
-                results['layer_1_models'] = {'status': 'error', 'error': str(e)}
-                print(f"❌ Layer 1: Model Service error: {str(e)}")
-
-            # Layer 2: Initialize Vector Index Service
-            try:
-                from shared.services.vector_index_service import VectorIndexService
-                vector_service = VectorIndexService()
-
-                if force_recreate:
-                    print("🔄 Layer 2: Force re-indexing all subjects...")
-                    index_result = vector_service.index_all_subjects(force_recreate=True)
-                else:
-                    print("🔄 Layer 2: Indexing missing/changed subjects...")
-                    index_result = vector_service.index_all_subjects(force_recreate=False)
-
-                results['layer_2_indexing'] = {
-                    'status': 'success' if index_result['success'] else 'error',
-                    'details': index_result
-                }
-                print(f"✅ Layer 2: Indexing completed - {index_result.get('indexed_subjects', 0)} subjects")
-            except Exception as e:
-                results['layer_2_indexing'] = {'status': 'error', 'error': str(e)}
-                print(f"❌ Layer 2: Indexing error: {str(e)}")
-
-            # Layer 3: Initialize RAG Query Service
-            try:
-                from shared.services.rag_service import get_rag_service
-                rag_service = get_rag_service()
-                rag_status = rag_service.get_status()
-                results['layer_3_query'] = {
-                    'status': 'ready',
-                    'details': rag_status
-                }
-                print("✅ Layer 3: RAG Query Service ready")
-            except Exception as e:
-                results['layer_3_query'] = {'status': 'error', 'error': str(e)}
-                print(f"❌ Layer 3: RAG Query Service error: {str(e)}")
-
-            # Determine overall success
-            layer_statuses = [layer['status'] for layer in results.values()]
-            overall_success = all(status in ['ready', 'success'] for status in layer_statuses)
-
-            if overall_success:
-                print("🎉 Three-layer RAG system initialized successfully!")
-                return success_response({
-                    'message': "Three-layer RAG system initialized successfully",
-                    'layers': results,
-                    'force_recreate': force_recreate
-                }, "RAG initialization completed")
-            else:
-                print("⚠️ RAG initialization had some failures")
-                return error_response("RAG initialization had failures", 500, {
-                    'layers': results,
-                    'force_recreate': force_recreate
-                })
-
-        except Exception as e:
-            return error_response(f"Failed to initialize RAG system: {str(e)}", 500)
-
-    @app.route('/api/rag/reload/<subject>', methods=['POST'])
-    @admin_required
-    def api_rag_reload_subject(subject):
-        """Reload vector store for a specific subject (Admin only)"""
-        try:
-            # Valid subjects
-            valid_subjects = ['physics', 'chemistry', 'biology', 'mathematics', 'computer_science']
-            if subject not in valid_subjects:
-                return error_response(f"Subject must be one of: {', '.join(valid_subjects)}", 400)
-
-            print(f"🔄 Reloading vector index for subject: {subject}")
-
-            # Use Layer 2: Vector Index Service for reloading
-            from shared.services.vector_index_service import VectorIndexService
-            vector_service = VectorIndexService()
-
-            # Force re-index this specific subject
-            result = vector_service.index_subject(subject, force_recreate=True)
-
-            if result['success']:
-                print(f"✅ Successfully reloaded vector index for {subject}")
-                return success_response({
-                    'message': f'Successfully reloaded vector index for {subject}',
-                    'subject': subject,
-                    'details': result
-                }, f"Reloaded {subject} vector index")
-            else:
-                print(f"❌ Failed to reload vector index for {subject}")
-                return error_response(f"Failed to reload vector index for {subject}", 500, result)
-
-        except Exception as e:
-            return error_response(f"Failed to reload subject index: {str(e)}", 500)
 
     # Enhanced Purchase Endpoints with Mock Test Flow
     @app.route('/api/purchases', methods=['POST'])
@@ -2942,174 +2859,200 @@ def create_app(config_name='development'):
                     return error_response("Course not found", 404)
 
                 print(f"🚀 Generating AI questions for mock test {mock_test.id}, subject: {subject.subject_name}")
-                print(f"🔧 PDF folder: {app.config.get('AI_PDF_FOLDER')}")
-                print(f"🔧 Ollama model: {app.config.get('AI_OLLAMA_MODEL', 'llama3.2:1b')}")
+                logger.info(f"🚀 Starting MCQ generation for test {mock_test.id}")
                 import sys
                 sys.stdout.flush()
 
-                # Generate questions using new RAG service
-                try:
-                    from shared.services.rag_service import get_rag_service
+                # Step 1: Generate initial batch (10 questions) immediately
+                print(f"📝 Generating initial batch of 10 questions...")
+                logger.info(f"📝 Generating initial batch of 10 questions...")
 
-                    rag_service = get_rag_service()
+                from shared.services.multimodal_rag_service import get_multimodal_rag_service
+                multimodal_service = get_multimodal_rag_service(
+                    chromadb_path=app.config.get('MULTIMODAL_CHROMADB_PATH'),
+                    ollama_model=app.config.get('MULTIMODAL_OLLAMA_MODEL', 'llava')
+                )
 
-                    print(f"🔧 RAG service created successfully")
+                # Generate initial 10 questions
+                initial_result = multimodal_service.generate_mcq_initial(
+                    query=subject.subject_name,
+                    subject=subject.subject_name,
+                    num_questions=10
+                )
 
-                    # Check RAG service status
-                    rag_status = rag_service.get_status()
-                    print(f"🔧 RAG service status: {rag_status.get('status', 'unknown')}")
-                    sys.stdout.flush()
+                initial_questions = []
+                if initial_result.get('success') and initial_result.get('questions'):
+                    print(f"✅ Initial batch generated: {len(initial_result['questions'])} questions")
+                    logger.info(f"✅ Initial batch generated: {len(initial_result['questions'])} questions")
+                    initial_questions = initial_result['questions']
+                else:
+                    print(f"⚠️ Initial batch generation failed, using fallback...")
+                    logger.warning(f"⚠️ Initial batch generation failed")
+                    initial_questions = generate_fallback_questions(subject.subject_name, 10)
 
-                    # Generate 50 questions for the test card using RAG pipeline with timeout
-                    import threading
-                    import queue
+                # Save initial questions to database
+                model_used = app.config.get('MULTIMODAL_OLLAMA_MODEL', 'llava')
+                batch_id = f"batch_{mock_test.id}_{user.id}"
 
-                    def rag_generation_worker(q, rag_service, subject_name):
-                        """Worker function for RAG generation with timeout"""
-                        try:
-                            result = rag_service.generate_mcq_questions(
-                                subject=subject_name.lower(),
-                                num_questions=50,
-                                difficulty='hard'  # Always use hard difficulty
-                            )
-                            q.put(result)
-                        except Exception as e:
-                            q.put({'success': False, 'error': str(e)})
-
-                    # Use threading with timeout (cross-platform solution)
-                    result_queue = queue.Queue()
-                    worker_thread = threading.Thread(
-                        target=rag_generation_worker,
-                        args=(result_queue, rag_service, subject.subject_name)
-                    )
-
-                    worker_thread.start()
-
+                for idx, q_data in enumerate(initial_questions):
                     try:
-                        # Wait for result with configurable timeout (default 120 seconds for MCQ generation)
-                        timeout_seconds = app.config.get('RAG_TIMEOUT_SECONDS', 120)
-                        result = result_queue.get(timeout=timeout_seconds)
-                    except queue.Empty:
-                        print("⏰ RAG generation timed out, using fallback")
-                        result = {'success': False, 'error': 'RAG generation timed out'}
-                    finally:
-                        # Ensure thread cleanup
-                        if worker_thread.is_alive():
-                            worker_thread.join(timeout=1)
+                        question = ExamCategoryQuestion(
+                            exam_category_id=mock_test.course_id,
+                            subject_id=mock_test.subject_id,
+                            mock_test_id=mock_test.id,
+                            question=q_data.get('question', ''),
+                            option_1=q_data.get('option_a', ''),
+                            option_2=q_data.get('option_b', ''),
+                            option_3=q_data.get('option_c', ''),
+                            option_4=q_data.get('option_d', ''),
+                            correct_answer=q_data.get('correct_answer', ''),
+                            explanation=q_data.get('explanation', ''),
+                            is_ai_generated=True,
+                            ai_model_used=model_used,
+                            difficulty_level='hard',
+                            user_id=user.id,
+                            purchased_id=mock_test.purchase_id,
+                            generation_batch_id=batch_id,
+                            batch_sequence=idx + 1,
+                            chromadb_collection=subject.subject_name.lower(),
+                            multimodal_source_type='mixed',
+                            generation_method='multimodal_rag'
+                        )
+                        db.session.add(question)
+                    except Exception as q_error:
+                        logger.error(f"❌ Error saving initial question {idx}: {str(q_error)}")
 
-                    print(f"🔍 RAG Generation Result: success={result.get('success')}, questions={len(result.get('questions', []))}")
-                    if not result.get('success'):
-                        print(f"❌ RAG Generation Error: {result.get('error')}")
-                    sys.stdout.flush()
+                try:
+                    db.session.commit()
+                    print(f"✅ Saved {len(initial_questions)} initial questions to database")
+                    logger.info(f"✅ Saved {len(initial_questions)} initial questions to database")
+                except Exception as commit_error:
+                    logger.error(f"❌ Error committing initial questions: {str(commit_error)}")
+                    db.session.rollback()
 
-                    if not result['success']:
-                        print(f"⚠️ RAG generation failed: {result['error']}")
-                        print("🔄 Falling back to simple question generation...")
-                        sys.stdout.flush()
+                # Step 2: Start async generation for remaining 40 questions
+                print(f"🔄 Starting background generation for remaining 40 questions...")
+                logger.info(f"🔄 Starting background generation for remaining 40 questions...")
 
-                        # Fallback: Use simple MCQ service
-                        try:
-                            from shared.services.simple_mcq_service import get_simple_mcq_service
-                            simple_service = get_simple_mcq_service()
-                            result = simple_service.generate_questions(subject.subject_name, 50)
-                            result['fallback_used'] = True
-                            print(f"✅ Fallback generated {len(result.get('questions', []))} questions")
-                        except Exception as fallback_error:
-                            print(f"❌ Fallback also failed: {str(fallback_error)}")
-                            # Last resort: use the inline fallback
-                            fallback_questions = generate_fallback_questions(subject.subject_name, 50)
-                            result = {
-                                'success': True,
-                                'questions': fallback_questions,
-                                'fallback_used': True,
-                                'method': 'inline_fallback'
-                            }
+                from shared.services.async_mcq_generation_service import get_async_mcq_generation_service
+                async_service = get_async_mcq_generation_service()
 
-                    # Check if we actually got questions
-                    if not result.get('questions') or len(result['questions']) == 0:
-                        return error_response("Failed to generate questions. Please try again.", 500)
+                # Create generation session
+                gen_session = async_service.create_session(
+                    mock_test_id=mock_test.id,
+                    user_id=user.id,
+                    subject_id=mock_test.subject_id,
+                    total_questions=40,  # Remaining questions
+                    initial_questions_count=40
+                )
 
-                    # Convert RAG questions to the expected format
-                    formatted_questions = []
-                    for q_data in result['questions']:
-                        formatted_questions.append({
-                            'question': q_data.get('question', ''),
-                            'option_1': q_data.get('option_a', ''),
-                            'option_2': q_data.get('option_b', ''),
-                            'option_3': q_data.get('option_c', ''),
-                            'option_4': q_data.get('option_d', ''),
-                            'correct_answer': q_data.get('correct_answer', ''),
-                            'explanation': q_data.get('explanation', '')
-                        })
+                logger.info(f"📝 Created generation session: {gen_session.session_id}")
 
-                    result['questions'] = formatted_questions
+                # Store data needed for background generation (can't pass ORM objects to thread)
+                subject_name = subject.subject_name
+                course_id = mock_test.course_id
+                subject_id = mock_test.subject_id
+                mock_test_id = mock_test.id
+                user_id = user.id
+                purchase_id = mock_test.purchase_id
 
-                    # Double-check we have valid questions
-                    if len(formatted_questions) == 0:
-                        return error_response("Failed to format RAG questions. Please try again.", 500)
+                # Define background generation function for remaining questions
+                def generate_remaining_mcq():
+                    # Need to run within Flask app context for database access
+                    try:
+                        with app.app_context():
+                            logger.info(f"🔄 Starting background generation for remaining 40 questions")
 
-                except Exception as rag_error:
-                    print(f"❌ RAG generation failed: {str(rag_error)}")
-                    import traceback
-                    print(f"❌ Full traceback: {traceback.format_exc()}")
-                    sys.stdout.flush()
+                            # Generate remaining 40 questions in chunks
+                            result = multimodal_service.generate_mcq(
+                                query=subject_name,
+                                subject=subject_name,
+                                num_questions=40
+                            )
 
-                    # Provide more detailed error information
-                    error_details = {
-                        'error_type': type(rag_error).__name__,
-                        'error_message': str(rag_error),
-                        'subject': subject.subject_name if subject else 'Unknown',
-                        'mock_test_id': mock_test.id if mock_test else 'Unknown',
-                        'session_id': session.id if session else 'Unknown'
-                    }
+                            if result.get('success') and result.get('questions'):
+                                logger.info(f"✅ Remaining questions generated: {len(result['questions'])} questions")
 
-                    return error_response(f"RAG service error: {str(rag_error)}", 500, error_details)
+                                # Save remaining questions to database
+                                for idx, q_data in enumerate(result['questions']):
+                                    try:
+                                        question = ExamCategoryQuestion(
+                                            exam_category_id=course_id,
+                                            subject_id=subject_id,
+                                            mock_test_id=mock_test_id,
+                                            question=q_data.get('question', ''),
+                                            option_1=q_data.get('option_a', ''),
+                                            option_2=q_data.get('option_b', ''),
+                                            option_3=q_data.get('option_c', ''),
+                                            option_4=q_data.get('option_d', ''),
+                                            correct_answer=q_data.get('correct_answer', ''),
+                                            explanation=q_data.get('explanation', ''),
+                                            is_ai_generated=True,
+                                            ai_model_used=model_used,
+                                            difficulty_level='hard',
+                                            user_id=user_id,
+                                            purchased_id=purchase_id,
+                                            generation_batch_id=batch_id,
+                                            batch_sequence=10 + idx + 1,  # Continue from 11
+                                            chromadb_collection=subject_name.lower(),
+                                            multimodal_source_type='mixed',
+                                            generation_method='multimodal_rag'
+                                        )
+                                        db.session.add(question)
+                                    except Exception as q_error:
+                                        logger.error(f"❌ Error saving remaining question {idx}: {str(q_error)}")
 
-                # Save questions to database linked to this mock test
-                questions_data = []
-                for q_data in result['questions']:
-                    question = ExamCategoryQuestion(
-                        exam_category_id=mock_test.course_id,
-                        subject_id=mock_test.subject_id,
-                        mock_test_id=mock_test.id,
-                        question=q_data['question'],
-                        option_1=q_data['option_1'],
-                        option_2=q_data['option_2'],
-                        option_3=q_data['option_3'],
-                        option_4=q_data['option_4'],
-                        correct_answer=q_data['correct_answer'],
-                        explanation=q_data.get('explanation', ''),
-                        is_ai_generated=True,
-                        ai_model_used=app.config.get('AI_OLLAMA_MODEL', 'llama3.2:1b'),
-                        difficulty_level='hard',
-                        user_id=user.id,
-                        purchased_id=mock_test.purchase_id
-                    )
-                    db.session.add(question)
-                    questions_data.append(question.to_dict(include_answer=False))
+                                try:
+                                    db.session.commit()
+                                    logger.info(f"✅ Saved {len(result['questions'])} remaining questions to database")
+                                except Exception as commit_error:
+                                    logger.error(f"❌ Error committing remaining questions: {str(commit_error)}")
+                                    db.session.rollback()
 
-                # Mark questions as generated
-                mock_test.questions_generated = True
-                mock_test.total_questions = len(questions_data)
+                                return result
+                            else:
+                                error_msg = result.get('error', 'Unknown error')
+                                logger.warning(f"⚠️ Remaining questions generation failed: {error_msg}")
+                                # Use fallback for remaining questions
+                                fallback_questions = generate_fallback_questions(subject.subject_name, 40)
+                                logger.info(f"🔄 Using fallback for remaining: {len(fallback_questions)} questions")
+                                return {'success': True, 'questions': fallback_questions, 'fallback_used': True}
 
-                db.session.commit()
+                    except Exception as e:
+                        logger.error(f"❌ Background generation error: {str(e)}", exc_info=True)
+                        return None
 
+                # Start background generation
+                async_service.start_background_generation(
+                    gen_session.session_id,
+                    generate_remaining_mcq
+                )
+
+                logger.info(f"✅ Background generation started for session: {gen_session.session_id}")
+
+                # Return immediately with initial 10 questions
                 return success_response({
-                    'questions': questions_data,
-                    'session_id': session.id,
+                    'questions': [q.to_dict(include_answer=False) for q in ExamCategoryQuestion.query.filter_by(mock_test_id=mock_test.id).limit(10).all()],
+                    'session_id': gen_session.session_id,
+                    'is_generating': True,
+                    'progress': 20,  # 10 out of 50 = 20%
+                    'questions_generated': 10,
+                    'total_questions': 50,
+                    'message': 'Initial 10 questions ready. Generating remaining 40 in background...',
+                    'test_session_id': session.id,
                     'mock_test_id': mock_test.id,
                     'attempt_number': session.attempt_number,
                     'is_re_attempt': False,
-                    'total_questions': len(questions_data),
                     'generation_info': {
-                        'model_used': app.config.get('AI_OLLAMA_MODEL', 'llama3.2:1b'),
-                        'sources_used': result.get('sources_used', [])
+                        'model_used': app.config.get('MULTIMODAL_OLLAMA_MODEL', 'llava'),
+                        'generation_method': 'multimodal_rag_hybrid'
                     }
-                }, "Questions generated successfully")
+                }, "Initial questions ready. Remaining questions generating in background")
 
         except Exception as e:
             db.session.rollback()
-            return error_response(f"Failed to get test questions: {str(e)}", 500)
+            logger.error(f"Error in api_get_test_questions: {str(e)}", exc_info=True)
+            return error_response(f"Failed to generate questions. Please try again.", 500)
 
     @app.route('/api/user/test-sessions/<int:session_id>/submit', methods=['POST'])
     @user_required
@@ -3576,13 +3519,9 @@ def create_app(config_name='development'):
                 exam_type = course.course_name
                 subject_directories = None  # Will be determined by exam type
 
-            # Generate questions using enhanced RAG service
+            # Generate questions using multimodal RAG service
+            # Three-layer RAG architecture has been removed - using multimodal RAG instead
             try:
-                from shared.services.rag_service import get_rag_service
-
-                rag_service = get_rag_service()
-
-                # Debug: Log the parameters being passed to RAG service
                 print(f"🔍 MCQ Generation Parameters:")
                 print(f"   num_questions: {num_questions}")
                 print(f"   subject_name: {subject.subject_name}")
@@ -3590,11 +3529,18 @@ def create_app(config_name='development'):
                 import sys
                 sys.stdout.flush()
 
-                # Use RAG pipeline for MCQ generation
-                result = rag_service.generate_mcq_questions(
+                # Use multimodal RAG service for MCQ generation
+                from shared.services.multimodal_rag_service import get_multimodal_rag_service
+
+                multimodal_service = get_multimodal_rag_service(
+                    chromadb_path=app.config.get('MULTIMODAL_CHROMADB_PATH'),
+                    ollama_model=app.config.get('MULTIMODAL_OLLAMA_MODEL', 'llava')
+                )
+
+                result = multimodal_service.generate_mcq_questions(
                     subject=subject.subject_name.lower(),
                     num_questions=num_questions,
-                    difficulty='hard'  # Always use hard difficulty for real exam challenge
+                    difficulty='hard'
                 )
 
                 print(f"🔍 MCQ Generation Result:")
@@ -5611,57 +5557,7 @@ if __name__ == '__main__':
     # with app.app_context():
     #     db.create_all()
 
-    # Initialize three-layer RAG system at startup
-    if app.config.get('RAG_AUTO_INITIALIZE', False):
-        try:
-            print("🚀 Initializing three-layer RAG system at startup...")
 
-            # Layer 1: Initialize Model Service (pre-load models)
-            from shared.services.model_service import get_model_service
-            print("🔧 Layer 1: Initializing Model Service...")
-            model_service = get_model_service()
-            model_status = model_service.get_status()
-
-            if model_status['status'] == 'ready':
-                print("✅ Layer 1: Model Service initialized successfully")
-            else:
-                print(f"⚠️ Layer 1: Model Service status: {model_status['status']}")
-
-            # Layer 2: Initialize Vector Index Service (index PDFs if needed)
-            from shared.services.vector_index_service import VectorIndexService
-            print("🔧 Layer 2: Checking Vector Index Service...")
-            vector_service = VectorIndexService()
-
-            # Check if indexing is needed
-            indexing_status = vector_service.get_indexing_status()
-            if indexing_status['needs_indexing']:
-                print("🔄 Layer 2: Indexing PDFs...")
-                index_result = vector_service.index_all_subjects()
-                if index_result['success']:
-                    print(f"✅ Layer 2: Indexed {index_result['total_subjects']} subjects successfully")
-                else:
-                    print(f"⚠️ Layer 2: Indexing completed with some failures")
-            else:
-                print("✅ Layer 2: All subjects already indexed")
-
-            # Layer 3: Initialize RAG Query Service
-            from shared.services.rag_service import get_rag_service
-            print("🔧 Layer 3: Initializing RAG Query Service...")
-            rag_service = get_rag_service(
-                ollama_model=app.config.get('RAG_OLLAMA_MODEL', 'llama3.2:1b'),
-                top_k_results=app.config.get('RAG_TOP_K_RESULTS', 5),
-                similarity_threshold=app.config.get('RAG_SIMILARITY_THRESHOLD', 0.01)
-            )
-
-            rag_status = rag_service.get_status()
-            print("✅ Layer 3: RAG Query Service initialized successfully")
-            print("🎉 Three-layer RAG system ready for production!")
-
-        except Exception as e:
-            print(f"❌ Error initializing RAG system: {str(e)}")
-            print("⚠️ Application will continue without RAG initialization")
-    else:
-        print("ℹ️ RAG auto-initialization disabled. Use /api/rag/initialize to initialize manually.")
 
     app.run(
         host='0.0.0.0',
